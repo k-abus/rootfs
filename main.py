@@ -14,6 +14,19 @@ intents.message_content = True  # Required for commands to work
 
 bot = commands.Bot(command_prefix='', intents=intents)
 
+async def send_error_message(ctx, message):
+    """Send error message to user only"""
+    try:
+        await ctx.author.send(message)
+    except:
+        # If DM fails, send to channel but delete after 5 seconds
+        msg = await ctx.send(message)
+        await asyncio.sleep(5)
+        try:
+            await msg.delete()
+        except:
+            pass
+
 # Mute durations in seconds
 MUTE_DURATIONS = {
     "سب أو شتائم": 30 * 60,  # 30 minutes
@@ -34,7 +47,7 @@ async def show_mute_options(ctx):
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
 
     # Create embed for mute options
@@ -86,15 +99,15 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
-        await ctx.send("❌ لا يمكنك ميوت البوتات!")
+        await send_error_message(ctx, "❌ لا يمكنك ميوت البوتات!")
         return
     
     if member.guild_permissions.administrator:
-        await ctx.send("❌ لا يمكنك ميوت المشرفين!")
+        await send_error_message(ctx, "❌ لا يمكنك ميوت المشرفين!")
         return
 
     # Map reason keywords to durations
@@ -128,7 +141,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
                 elif isinstance(channel, discord.VoiceChannel):
                     await channel.set_permissions(muted_role, speak=False, connect=False)
         except discord.Forbidden:
-            await ctx.send("❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+            await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
             return
     
     # Apply mute
@@ -155,9 +168,9 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
             await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
             
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات لإضافة دور الميوت!")
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}")
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='ميوت')
 async def execute_mute(ctx, member: discord.Member, reason_number: int, duration_minutes: int = None):
@@ -166,15 +179,15 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
-        await ctx.send("❌ لا يمكنك ميوت البوتات!")
+        await send_error_message(ctx, "❌ لا يمكنك ميوت البوتات!")
         return
     
     if member.guild_permissions.administrator:
-        await ctx.send("❌ لا يمكنك ميوت المشرفين!")
+        await send_error_message(ctx, "❌ لا يمكنك ميوت المشرفين!")
         return
 
     # Map reason numbers to reasons and durations
@@ -187,7 +200,7 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
     }
     
     if reason_number not in reasons:
-        await ctx.send("❌ رقم السبب غير صحيح! استخدم أرقام من 1 إلى 5")
+        await send_error_message(ctx, "❌ رقم السبب غير صحيح! استخدم أرقام من 1 إلى 5")
         return
     
     reason, default_duration = reasons[reason_number]
@@ -204,7 +217,7 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
                 elif isinstance(channel, discord.VoiceChannel):
                     await channel.set_permissions(muted_role, speak=False, connect=False)
         except discord.Forbidden:
-            await ctx.send("❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+            await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
             return
     
     # Apply mute
@@ -231,9 +244,9 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
             await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
             
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات لإضافة دور الميوت!")
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}")
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='باند')
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -242,19 +255,19 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
-        await ctx.send("❌ لا يمكنك حظر البوتات!")
+        await send_error_message(ctx, "❌ لا يمكنك حظر البوتات!")
         return
     
     if member.guild_permissions.administrator:
-        await ctx.send("❌ لا يمكنك حظر المشرفين!")
+        await send_error_message(ctx, "❌ لا يمكنك حظر المشرفين!")
         return
     
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك حظر نفسك!")
+        await send_error_message(ctx, "❌ لا يمكنك حظر نفسك!")
         return
 
     try:
@@ -273,9 +286,9 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         await ctx.send(embed=embed)
         
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات لحظر الأعضاء!")
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لحظر الأعضاء!")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}")
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='كيك')
 async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -284,19 +297,19 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
-        await ctx.send("❌ لا يمكنك طرد البوتات!")
+        await send_error_message(ctx, "❌ لا يمكنك طرد البوتات!")
         return
     
     if member.guild_permissions.administrator:
-        await ctx.send("❌ لا يمكنك طرد المشرفين!")
+        await send_error_message(ctx, "❌ لا يمكنك طرد المشرفين!")
         return
     
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك طرد نفسك!")
+        await send_error_message(ctx, "❌ لا يمكنك طرد نفسك!")
         return
 
     try:
@@ -315,9 +328,9 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         await ctx.send(embed=embed)
         
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات لطرد الأعضاء!")
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لطرد الأعضاء!")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}")
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='مسح')
 async def clear_messages(ctx, amount: int):
@@ -326,28 +339,28 @@ async def clear_messages(ctx, amount: int):
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if amount < 1 or amount > 100:
-        await ctx.send("❌ يمكنك مسح من 1 إلى 100 رسالة فقط!")
+        await send_error_message(ctx, "❌ يمكنك مسح من 1 إلى 100 رسالة فقط!")
         return
 
     try:
         deleted = await ctx.channel.purge(limit=amount + 1)  # +1 to include command message
-        await ctx.send(f"✅ تم مسح {len(deleted) - 1} رسالة بنجاح!", delete_after=5)
+        await ctx.send(f"🗑️ تم مسح {len(deleted) - 1} رسالة", delete_after=5)
         
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات لمسح الرسائل!")
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لمسح الرسائل!")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}")
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
     """عرض قائمة الأوامر المتاحة"""
     
     embed = discord.Embed(
-        title="🤖 قائمة الأوامر المتاحة",
+        title="�� قائمة الأوامر المتاحة",
         description="جميع الأوامر المتاحة للبوت",
         color=0x00ff00
     )
@@ -401,14 +414,31 @@ async def help_command(ctx):
 # Error handling
 @bot.event
 async def on_command_error(ctx, error):
+    # Ignore errors for commands that don't exist
+    if isinstance(error, commands.CommandNotFound):
+        return
+    
+    # Send error message only to the user who used the command
+    error_message = "❌ حدث خطأ في تنفيذ الأمر"
+    
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ يرجى إدخال جميع المعاملات المطلوبة!")
+        error_message = "❌ يرجى إدخال جميع المعاملات المطلوبة!"
     elif isinstance(error, commands.MemberNotFound):
-        await ctx.send("❌ لم يتم العثور على العضو المحدد!")
+        error_message = "❌ لم يتم العثور على العضو المحدد!"
     elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ معامل غير صحيح!")
-    else:
-        await ctx.send(f"❌ حدث خطأ: {str(error)}")
+        error_message = "❌ معامل غير صحيح!"
+    
+    # Send error message only to the user who used the command
+    try:
+        await ctx.author.send(error_message)
+    except:
+        # If DM fails, send to channel but delete after 5 seconds
+        msg = await ctx.send(error_message)
+        await asyncio.sleep(5)
+        try:
+            await msg.delete()
+        except:
+            pass
 
 # Run the bot
 if __name__ == "__main__":
