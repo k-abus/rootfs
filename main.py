@@ -27,26 +27,18 @@ MUTE_DURATIONS = {
 async def on_ready():
     print(f'{bot.user} تم تشغيل البوت بنجاح!')
 
-@bot.command(name='اسكت')
-async def mute_member(ctx, member: discord.Member):
-    """أمر الميوت مع خيارات متعددة"""
+@bot.command(name='اسكات')
+async def show_mute_options(ctx):
+    """عرض خيارات الميوت للمشرفين فقط"""
     
     # Check if user has permission
     if not ctx.author.guild_permissions.manage_roles:
         await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
         return
-    
-    if member.bot:
-        await ctx.send("❌ لا يمكنك ميوت البوتات!")
-        return
-    
-    if member.guild_permissions.administrator:
-        await ctx.send("❌ لا يمكنك ميوت المشرفين!")
-        return
 
     # Create embed for mute options
     embed = discord.Embed(
-        title=f"🔇 خيارات الميوت لـ {member.display_name}",
+        title="🔇 خيارات الميوت",
         description="اختر سبب الميوت:",
         color=0xff6b6b
     )
@@ -81,10 +73,89 @@ async def mute_member(ctx, member: discord.Member):
         inline=False
     )
     
-    embed.set_footer(text=f"اكتب: ميوت {member.mention} [رقم السبب] [المدة بالدقائق اختياري]")
-    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    embed.set_footer(text="اكتب: اسكت @عضو السبب")
+    embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
     await ctx.send(embed=embed)
+
+@bot.command(name='اسكت')
+async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
+    """ميوت مباشر مع السبب"""
+    
+    # Check if user has permission
+    if not ctx.author.guild_permissions.manage_roles:
+        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+        return
+    
+    if member.bot:
+        await ctx.send("❌ لا يمكنك ميوت البوتات!")
+        return
+    
+    if member.guild_permissions.administrator:
+        await ctx.send("❌ لا يمكنك ميوت المشرفين!")
+        return
+
+    # Map reason keywords to durations
+    reason_mapping = {
+        "سب": 30,
+        "شتائم": 30,
+        "اساءة": 60,
+        "استهزاء": 60,
+        "روابط": 120,
+        "اعلانات": 120,
+        "سبام": 45,
+        "تجاهل": 15,
+        "تحذيرات": 15
+    }
+    
+    # Find matching reason and duration
+    duration = 30  # default duration
+    for keyword, dur in reason_mapping.items():
+        if keyword in reason.lower():
+            duration = dur
+            break
+    
+    # Find or create muted role
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not muted_role:
+        try:
+            muted_role = await ctx.guild.create_role(name="Muted", reason="إنشاء دور الميوت")
+            for channel in ctx.guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+                elif isinstance(channel, discord.VoiceChannel):
+                    await channel.set_permissions(muted_role, speak=False, connect=False)
+        except discord.Forbidden:
+            await ctx.send("❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+            return
+    
+    # Apply mute
+    try:
+        await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author.name} - السبب: {reason}")
+        
+        embed = discord.Embed(
+            title="🔇 تم الميوت بنجاح",
+            description=f"تم ميوت {member.mention}",
+            color=0xff6b6b,
+            timestamp=datetime.datetime.now()
+        )
+        embed.add_field(name="السبب", value=reason, inline=True)
+        embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        
+        await ctx.send(embed=embed)
+        
+        # Remove mute after duration
+        await asyncio.sleep(duration * 60)
+        if muted_role in member.roles:
+            await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
+            await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+            
+    except discord.Forbidden:
+        await ctx.send("❌ لا أملك صلاحيات لإضافة دور الميوت!")
+    except Exception as e:
+        await ctx.send(f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='ميوت')
 async def execute_mute(ctx, member: discord.Member, reason_number: int, duration_minutes: int = None):
@@ -272,37 +343,43 @@ async def help_command(ctx):
     )
     
     embed.add_field(
-        name="🔇 !اسكت [عضو]",
-        value="عرض خيارات الميوت المتاحة",
+        name="🔇 اسكات",
+        value="عرض خيارات الميوت المتاحة (للمشرفين فقط)",
         inline=False
     )
     
     embed.add_field(
-        name="🔇 !ميوت [عضو] [رقم السبب] [المدة اختياري]",
+        name="🔇 اسكت @عضو السبب",
+        value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب)",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔇 ميوت @عضو [رقم السبب] [المدة اختياري]",
         value="ميوت عضو مع تحديد السبب والمدة",
         inline=False
     )
     
     embed.add_field(
-        name="🔨 !باند [عضو] [السبب اختياري]",
+        name="🔨 باند @عضو [السبب اختياري]",
         value="حظر عضو من السيرفر",
         inline=False
     )
     
     embed.add_field(
-        name="👢 !كيك [عضو] [السبب اختياري]",
+        name="👢 كيك @عضو [السبب اختياري]",
         value="طرد عضو من السيرفر",
         inline=False
     )
     
     embed.add_field(
-        name="🗑️ !مسح [العدد]",
+        name="🗑️ مسح [العدد]",
         value="مسح عدد محدد من الرسائل",
         inline=False
     )
     
     embed.add_field(
-        name="❓ !مساعدة",
+        name="❓ مساعدة",
         value="عرض هذه القائمة",
         inline=False
     )
