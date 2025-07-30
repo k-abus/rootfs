@@ -27,6 +27,20 @@ async def send_error_message(ctx, message):
         except:
             pass
 
+def log_command_usage(ctx, command_name):
+    """Log command usage for debugging"""
+    print(f"Command used: {command_name} by {ctx.author.name} in {ctx.guild.name}")
+
+def validate_member_permissions(ctx, member):
+    """Validate if member can be muted/banned/kicked"""
+    if member.bot:
+        return False, "لا يمكنك ميوت/حظر/طرد البوتات!"
+    if member.guild_permissions.administrator:
+        return False, "لا يمكنك ميوت/حظر/طرد المشرفين!"
+    if member == ctx.author:
+        return False, "لا يمكنك ميوت/حظر/طرد نفسك!"
+    return True, ""
+
 # Mute durations in seconds
 MUTE_DURATIONS = {
     "سب أو شتائم": 30 * 60,  # 30 minutes
@@ -43,6 +57,8 @@ async def on_ready():
 @bot.command(name='اسكات')
 async def show_mute_options(ctx):
     """عرض خيارات الميوت للمشرفين فقط"""
+    
+    log_command_usage(ctx, "اسكات")
     
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
@@ -87,14 +103,16 @@ async def show_mute_options(ctx):
         inline=False
     )
     
-    embed.set_footer(text="اكتب: اسكت @عضو السبب")
+    embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
     await ctx.send(embed=embed)
 
 @bot.command(name='اسكت')
-async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
+async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
     """ميوت مباشر مع السبب"""
+    
+    log_command_usage(ctx, "اسكت")
     
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
@@ -102,12 +120,10 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
-    if member.bot:
-        await send_error_message(ctx, "❌ لا يمكنك ميوت البوتات!")
-        return
-    
-    if member.guild_permissions.administrator:
-        await send_error_message(ctx, "❌ لا يمكنك ميوت المشرفين!")
+    # Validate member permissions
+    is_valid, error_message = validate_member_permissions(ctx, member)
+    if not is_valid:
+        await send_error_message(ctx, f"❌ {error_message}")
         return
 
     # Map reason keywords to durations
@@ -176,18 +192,18 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
 async def execute_mute(ctx, member: discord.Member, reason_number: int, duration_minutes: int = None):
     """تنفيذ الميوت بناءً على السبب المختار"""
     
+    log_command_usage(ctx, "ميوت")
+    
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
-    if member.bot:
-        await send_error_message(ctx, "❌ لا يمكنك ميوت البوتات!")
-        return
-    
-    if member.guild_permissions.administrator:
-        await send_error_message(ctx, "❌ لا يمكنك ميوت المشرفين!")
+    # Validate member permissions
+    is_valid, error_message = validate_member_permissions(ctx, member)
+    if not is_valid:
+        await send_error_message(ctx, f"❌ {error_message}")
         return
 
     # Map reason numbers to reasons and durations
@@ -252,22 +268,18 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
     """حظر عضو من السيرفر"""
     
+    log_command_usage(ctx, "باند")
+    
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
-    if member.bot:
-        await send_error_message(ctx, "❌ لا يمكنك حظر البوتات!")
-        return
-    
-    if member.guild_permissions.administrator:
-        await send_error_message(ctx, "❌ لا يمكنك حظر المشرفين!")
-        return
-    
-    if member == ctx.author:
-        await send_error_message(ctx, "❌ لا يمكنك حظر نفسك!")
+    # Validate member permissions
+    is_valid, error_message = validate_member_permissions(ctx, member)
+    if not is_valid:
+        await send_error_message(ctx, f"❌ {error_message}")
         return
 
     try:
@@ -294,22 +306,18 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
 async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
     """طرد عضو من السيرفر"""
     
+    log_command_usage(ctx, "كيك")
+    
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
-    if member.bot:
-        await send_error_message(ctx, "❌ لا يمكنك طرد البوتات!")
-        return
-    
-    if member.guild_permissions.administrator:
-        await send_error_message(ctx, "❌ لا يمكنك طرد المشرفين!")
-        return
-    
-    if member == ctx.author:
-        await send_error_message(ctx, "❌ لا يمكنك طرد نفسك!")
+    # Validate member permissions
+    is_valid, error_message = validate_member_permissions(ctx, member)
+    if not is_valid:
+        await send_error_message(ctx, f"❌ {error_message}")
         return
 
     try:
@@ -336,6 +344,8 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
 async def clear_messages(ctx, amount: int):
     """مسح عدد محدد من الرسائل"""
     
+    log_command_usage(ctx, "مسح")
+    
     # Check if user has admin role
     admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
     if not admin_role or admin_role not in ctx.author.roles:
@@ -359,6 +369,8 @@ async def clear_messages(ctx, amount: int):
 async def help_command(ctx):
     """عرض قائمة الأوامر المتاحة"""
     
+    log_command_usage(ctx, "مساعدة")
+    
     embed = discord.Embed(
         title="�� قائمة الأوامر المتاحة",
         description="جميع الأوامر المتاحة للبوت",
@@ -373,7 +385,7 @@ async def help_command(ctx):
     
     embed.add_field(
         name="🔇 اسكت @عضو السبب",
-        value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب) - للأدمن فقط",
+        value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب) - للأدمن فقط\n⚠️ يجب كتابة السبب بعد منشن العضو",
         inline=False
     )
     
