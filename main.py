@@ -12,7 +12,7 @@ load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True  # Required for commands to work
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='$', intents=intents)
 
 # Mute durations in seconds
 MUTE_DURATIONS = {
@@ -26,7 +26,7 @@ MUTE_DURATIONS = {
 @bot.event
 async def on_ready():
     print(f'{bot.user} تم تشغيل البوت بنجاح!')
-    await bot.change_presence(activity=discord.Game(name="!اسكت للميوت | !باند للحظر"))
+    await bot.change_presence(activity=discord.Game(name="$اسكت للميوت | $باند للحظر"))
 
 @bot.command(name='اسكت')
 async def mute_member(ctx, member: discord.Member, reason_type: str = None, duration_minutes: int = None):
@@ -82,7 +82,7 @@ async def mute_member(ctx, member: discord.Member, reason_type: str = None, dura
         inline=False
     )
     
-    embed.set_footer(text="اكتب !ميوت [عضو] [رقم السبب] [المدة بالدقائق اختياري]")
+    embed.set_footer(text="اكتب $ميوت [عضو] [رقم السبب] [المدة بالدقائق اختياري]")
     
     await ctx.send(embed=embed)
 
