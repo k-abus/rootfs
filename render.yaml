@@ -3,9 +3,10 @@ services:
     name: fsociety-discord-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python app.py
     envVars:
       - key: DISCORD_TOKEN
         sync: false
     healthCheckPath: /
-    autoDeploy: true 
+    autoDeploy: true
+    plan: free 
