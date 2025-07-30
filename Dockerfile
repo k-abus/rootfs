@@ -11,11 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create .env file if it doesn't exist
-RUN touch .env
-
-# Expose port (if needed for webhooks)
+# Expose port for Flask
 EXPOSE 8000
 
-# Run the bot
-CMD ["python", "main.py"] 
+# Set environment variable
+ENV PORT=8000
+
+# Run the application
+CMD ["python", "app.py"] 
