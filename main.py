@@ -26,10 +26,9 @@ MUTE_DURATIONS = {
 @bot.event
 async def on_ready():
     print(f'{bot.user} تم تشغيل البوت بنجاح!')
-    await bot.change_presence(activity=discord.Game(name="اسكت للميوت | باند للحظر"))
 
 @bot.command(name='اسكت')
-async def mute_member(ctx, member: discord.Member, reason_type: str = None, duration_minutes: int = None):
+async def mute_member(ctx, member: discord.Member):
     """أمر الميوت مع خيارات متعددة"""
     
     # Check if user has permission
@@ -47,7 +46,7 @@ async def mute_member(ctx, member: discord.Member, reason_type: str = None, dura
 
     # Create embed for mute options
     embed = discord.Embed(
-        title="🔇 خيارات الميوت",
+        title=f"🔇 خيارات الميوت لـ {member.display_name}",
         description="اختر سبب الميوت:",
         color=0xff6b6b
     )
@@ -82,7 +81,8 @@ async def mute_member(ctx, member: discord.Member, reason_type: str = None, dura
         inline=False
     )
     
-    embed.set_footer(text="اكتب ميوت [عضو] [رقم السبب] [المدة بالدقائق اختياري]")
+    embed.set_footer(text=f"اكتب: ميوت {member.mention} [رقم السبب] [المدة بالدقائق اختياري]")
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
     
     await ctx.send(embed=embed)
 
