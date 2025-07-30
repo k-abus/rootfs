@@ -41,6 +41,80 @@ def validate_member_permissions(ctx, member):
         return False, "لا يمكنك ميوت/حظر/طرد نفسك!"
     return True, ""
 
+async def create_muted_role(ctx):
+    """Create muted role if it doesn't exist"""
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not muted_role:
+        try:
+            muted_role = await ctx.guild.create_role(name="Muted", reason="إنشاء دور الميوت")
+            for channel in ctx.guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+                elif isinstance(channel, discord.VoiceChannel):
+                    await channel.set_permissions(muted_role, speak=False, connect=False)
+            return muted_role
+        except discord.Forbidden:
+            return None
+    return muted_role
+
+def format_time_remaining(seconds):
+    """Format remaining time in Arabic"""
+    if seconds <= 0:
+        return "انتهى"
+    
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+    
+    if minutes > 0:
+        if remaining_seconds > 0:
+            return f"{minutes} دقيقة و {remaining_seconds} ثانية"
+        else:
+            return f"{minutes} دقيقة"
+    else:
+        return f"{remaining_seconds} ثانية"
+
+async def get_mute_info(ctx, member):
+    """Get mute information from audit logs"""
+    try:
+        muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+        if not muted_role:
+            return None, None, None, None
+        if muted_role not in member.roles:
+            return None, None, None, None
+        
+        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=100):
+            if entry.target == member:
+                for change in entry.changes:
+                    if change.key == 'roles':
+                        if muted_role in change.after and muted_role not in change.before:
+                            # Calculate remaining time based on reason
+                            reason = entry.reason or "لا يوجد سبب محدد"
+                            duration_minutes = 30  # default
+                            
+                            # Map reason keywords to durations
+                            reason_mapping = {
+                                "سب": 30, "شتائم": 30, "اساءة": 60, "استهزاء": 60,
+                                "روابط": 120, "اعلانات": 120, "سبام": 45,
+                                "تجاهل": 15, "تحذيرات": 15
+                            }
+                            
+                            for keyword, dur in reason_mapping.items():
+                                if keyword in reason.lower():
+                                    duration_minutes = dur
+                                    break
+                            
+                            # Calculate remaining time
+                            mute_time = entry.created_at
+                            current_time = datetime.datetime.now(mute_time.tzinfo)
+                            elapsed_time = (current_time - mute_time).total_seconds()
+                            remaining_time = (duration_minutes * 60) - elapsed_time
+                            
+                            return reason, entry.user, mute_time, remaining_time
+        
+        return "غير معروف", None, None, None
+    except:
+        return "غير معروف", None, None, None
+
 # Mute durations in seconds
 MUTE_DURATIONS = {
     "سب أو شتائم": 30 * 60,  # 30 minutes
@@ -147,18 +221,10 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
             break
     
     # Find or create muted role
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    muted_role = await create_muted_role(ctx)
     if not muted_role:
-        try:
-            muted_role = await ctx.guild.create_role(name="Muted", reason="إنشاء دور الميوت")
-            for channel in ctx.guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
-                elif isinstance(channel, discord.VoiceChannel):
-                    await channel.set_permissions(muted_role, speak=False, connect=False)
-        except discord.Forbidden:
-            await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
-            return
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+        return
     
     # Apply mute
     try:
@@ -223,18 +289,10 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
     duration = duration_minutes if duration_minutes else default_duration
     
     # Find or create muted role
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    muted_role = await create_muted_role(ctx)
     if not muted_role:
-        try:
-            muted_role = await ctx.guild.create_role(name="Muted", reason="إنشاء دور الميوت")
-            for channel in ctx.guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
-                elif isinstance(channel, discord.VoiceChannel):
-                    await channel.set_permissions(muted_role, speak=False, connect=False)
-        except discord.Forbidden:
-            await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
-            return
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+        return
     
     # Apply mute
     try:
@@ -365,6 +423,113 @@ async def clear_messages(ctx, amount: int):
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
+@bot.command(name='تكلم')
+async def unmute_member(ctx, member: discord.Member = None):
+    """فك الإسكات عن عضو"""
+    
+    log_command_usage(ctx, "تكلم")
+    
+    # If no member specified, unmute the command user
+    if member is None:
+        member = ctx.author
+    
+    # Check if user has admin role (only required for unmuting others)
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if member != ctx.author and (not admin_role or admin_role not in ctx.author.roles):
+        await send_error_message(ctx, "❌ يمكنك فك إسكاتك فقط! للأدمن فك إسكات الآخرين")
+        return
+    
+    # If no member specified, unmute the command user
+    if member is None:
+        member = ctx.author
+    
+    # Find muted role
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not muted_role:
+        await send_error_message(ctx, "❌ لا يوجد دور الميوت في السيرفر!")
+        return
+    
+    # Check if member is muted
+    if muted_role not in member.roles:
+        await send_error_message(ctx, f"❌ {member.mention} ليس مكتوم!")
+        return
+    
+    try:
+        await member.remove_roles(muted_role, reason=f"فك الإسكات بواسطة {ctx.author.name}")
+        
+        embed = discord.Embed(
+            title="🔊 تم فك الإسكات بنجاح",
+            description=f"تم فك الإسكات عن {member.mention}",
+            color=0x00ff00,
+            timestamp=datetime.datetime.now()
+        )
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        
+        await ctx.send(embed=embed)
+        
+    except discord.Forbidden:
+        await send_error_message(ctx, "❌ لا أملك صلاحيات لفك الإسكات!")
+    except Exception as e:
+        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
+
+@bot.command(name='اسكاتي')
+async def check_mute_status(ctx, member: discord.Member = None):
+    """فحص حالة الإسكات للعضو"""
+    
+    log_command_usage(ctx, "اسكاتي")
+    
+    # If no member specified, check the command user
+    if member is None:
+        member = ctx.author
+    
+    # Find muted role
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not muted_role:
+        await send_error_message(ctx, "❌ لا يوجد دور الميوت في السيرفر!")
+        return
+    
+    # Check if member is muted
+    if muted_role not in member.roles:
+        embed = discord.Embed(
+            title="✅ حالة الإسكات",
+            description=f"{member.mention} ليس مكتوم",
+            color=0x00ff00,
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        await ctx.send(embed=embed)
+        return
+    
+    # Get mute information
+    reason, muted_by, mute_date, remaining_time = await get_mute_info(ctx, member)
+    
+    if reason is None:
+        embed = discord.Embed(
+            title="✅ حالة الإسكات",
+            description=f"{member.mention} ليس مكتوم",
+            color=0x00ff00,
+            timestamp=datetime.datetime.now()
+        )
+        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        await ctx.send(embed=embed)
+        return
+    
+    # Format remaining time
+    time_remaining = format_time_remaining(int(remaining_time)) if remaining_time is not None else "غير معروف"
+    
+    embed = discord.Embed(
+        title="🔇 حالة الإسكات",
+        description=f"{member.mention} مكتوم",
+        color=0xff6b6b,
+        timestamp=datetime.datetime.now()
+    )
+    embed.add_field(name="السبب", value=reason, inline=True)
+    embed.add_field(name="بواسطة", value=muted_by.mention if muted_by else "غير معروف", inline=True)
+    embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+    await ctx.send(embed=embed)
+
 @bot.command(name='مساعدة')
 async def help_command(ctx):
     """عرض قائمة الأوامر المتاحة"""
@@ -410,6 +575,18 @@ async def help_command(ctx):
     embed.add_field(
         name="🗑️ مسح [العدد]",
         value="مسح عدد محدد من الرسائل - للأدمن فقط",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔊 تكلم [@عضو اختياري]",
+        value="فك الإسكات عن عضو (متاح للجميع لفك إسكاتهم، للأدمن لفك إسكات الآخرين)",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔍 اسكاتي [@عضو اختياري]",
+        value="فحص حالة الإسكات للعضو (متاح للجميع)",
         inline=False
     )
     
