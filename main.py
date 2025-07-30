@@ -10,7 +10,7 @@ load_dotenv()
 
 # Bot setup
 intents = discord.Intents.default()
-# intents.message_content = True  # Commented out to avoid privileged intents
+intents.message_content = True  # Required for commands to work
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
