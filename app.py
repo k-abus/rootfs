@@ -5,14 +5,28 @@ FSociety Discord Bot - Main Application
 
 import os
 import sys
+import threading
+from flask import Flask
 from main import bot
 
-if __name__ == "__main__":
+# Create Flask app for Render
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "FSociety Discord Bot is running! 🤖"
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+def run_bot():
+    """Run the Discord bot in a separate thread"""
     token = os.getenv('DISCORD_TOKEN')
     if not token:
         print("❌ يرجى إضافة DISCORD_TOKEN في متغيرات البيئة")
         print("في Render: اذهب إلى Environment Variables وأضف DISCORD_TOKEN")
-        sys.exit(1)
+        return
     
     print("🚀 بدء تشغيل البوت...")
     try:
@@ -20,4 +34,13 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت: {e}")
         print("تأكد من صحة التوكن وصلاحيات البوت")
-        sys.exit(1) 
+
+if __name__ == "__main__":
+    # Start Discord bot in a separate thread
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+    
+    # Start Flask app for Render
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port) 
