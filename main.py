@@ -31,9 +31,10 @@ async def on_ready():
 async def show_mute_options(ctx):
     """عرض خيارات الميوت للمشرفين فقط"""
     
-    # Check if user has permission
-    if not ctx.author.guild_permissions.manage_roles:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
 
     # Create embed for mute options
@@ -82,9 +83,10 @@ async def show_mute_options(ctx):
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
     """ميوت مباشر مع السبب"""
     
-    # Check if user has permission
-    if not ctx.author.guild_permissions.manage_roles:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
@@ -161,8 +163,10 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str):
 async def execute_mute(ctx, member: discord.Member, reason_number: int, duration_minutes: int = None):
     """تنفيذ الميوت بناءً على السبب المختار"""
     
-    if not ctx.author.guild_permissions.manage_roles:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
@@ -235,8 +239,10 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
     """حظر عضو من السيرفر"""
     
-    if not ctx.author.guild_permissions.ban_members:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
@@ -275,8 +281,10 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
 async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
     """طرد عضو من السيرفر"""
     
-    if not ctx.author.guild_permissions.kick_members:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if member.bot:
@@ -315,8 +323,10 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
 async def clear_messages(ctx, amount: int):
     """مسح عدد محدد من الرسائل"""
     
-    if not ctx.author.guild_permissions.manage_messages:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+    # Check if user has admin role
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    if not admin_role or admin_role not in ctx.author.roles:
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!")
         return
     
     if amount < 1 or amount > 100:
@@ -344,37 +354,37 @@ async def help_command(ctx):
     
     embed.add_field(
         name="🔇 اسكات",
-        value="عرض خيارات الميوت المتاحة (للمشرفين فقط)",
+        value="عرض خيارات الميوت المتاحة (للأدمن فقط)",
         inline=False
     )
     
     embed.add_field(
         name="🔇 اسكت @عضو السبب",
-        value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب)",
+        value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب) - للأدمن فقط",
         inline=False
     )
     
     embed.add_field(
         name="🔇 ميوت @عضو [رقم السبب] [المدة اختياري]",
-        value="ميوت عضو مع تحديد السبب والمدة",
+        value="ميوت عضو مع تحديد السبب والمدة - للأدمن فقط",
         inline=False
     )
     
     embed.add_field(
         name="🔨 باند @عضو [السبب اختياري]",
-        value="حظر عضو من السيرفر",
+        value="حظر عضو من السيرفر - للأدمن فقط",
         inline=False
     )
     
     embed.add_field(
         name="👢 كيك @عضو [السبب اختياري]",
-        value="طرد عضو من السيرفر",
+        value="طرد عضو من السيرفر - للأدمن فقط",
         inline=False
     )
     
     embed.add_field(
         name="🗑️ مسح [العدد]",
-        value="مسح عدد محدد من الرسائل",
+        value="مسح عدد محدد من الرسائل - للأدمن فقط",
         inline=False
     )
     
