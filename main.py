@@ -152,7 +152,7 @@ async def show_mute_options(ctx):
     
     # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!", ephemeral=True)
         return
 
     # Create embed for mute options
@@ -195,13 +195,8 @@ async def show_mute_options(ctx):
     embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
-    # Send message with auto-delete after 15 seconds
-    msg = await ctx.send(embed=embed)
-    await asyncio.sleep(15)
-    try:
-        await msg.delete()
-    except:
-        pass
+    # Send as ephemeral message
+    await send_hidden_message(ctx, embed=embed)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -656,13 +651,8 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.BadArgument):
         error_message = "❌ معامل غير صحيح!"
     
-    # Send error message to channel but delete after 5 seconds
-    msg = await ctx.send(error_message)
-    await asyncio.sleep(5)
-    try:
-        await msg.delete()
-    except:
-        pass
+    # Send error message as ephemeral
+    await ctx.send(error_message, ephemeral=True)
 
 # Run the bot
 if __name__ == "__main__":
