@@ -150,7 +150,7 @@ class MuteOptionsView(discord.ui.View):
         self.member = member
         self.ctx = ctx
 
-    @discord.ui.button(label="سب/شتائم", style=discord.ButtonStyle.danger, emoji="🤬")
+    @discord.ui.button(label="سب/شتائم", style=discord.ButtonStyle.danger, emoji="🤬", custom_id="swear_mute")
     async def swear_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -158,7 +158,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "سب/شتائم", 30)
 
-    @discord.ui.button(label="إساءة/استهزاء", style=discord.ButtonStyle.danger, emoji="😤")
+    @discord.ui.button(label="إساءة/استهزاء", style=discord.ButtonStyle.danger, emoji="😤", custom_id="abuse_mute")
     async def abuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -166,7 +166,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "إساءة/استهزاء", 60)
 
-    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.secondary, emoji="🔗")
+    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.secondary, emoji="🔗", custom_id="links_mute")
     async def links_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -174,7 +174,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "روابط/إعلانات", 120)
 
-    @discord.ui.button(label="سبام", style=discord.ButtonStyle.secondary, emoji="📢")
+    @discord.ui.button(label="سبام", style=discord.ButtonStyle.secondary, emoji="📢", custom_id="spam_mute")
     async def spam_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -182,7 +182,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "سبام", 45)
 
-    @discord.ui.button(label="تجاهل التحذيرات", style=discord.ButtonStyle.secondary, emoji="⚠️")
+    @discord.ui.button(label="تجاهل التحذيرات", style=discord.ButtonStyle.secondary, emoji="⚠️", custom_id="ignore_mute")
     async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -237,7 +237,7 @@ class HelpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=120)
 
-    @discord.ui.button(label="الأوامر العامة", style=discord.ButtonStyle.primary, emoji="📋")
+    @discord.ui.button(label="الأوامر العامة", style=discord.ButtonStyle.primary, emoji="📋", custom_id="general_commands")
     async def general_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
             title="📋 الأوامر العامة",
@@ -249,7 +249,7 @@ class HelpView(discord.ui.View):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="أوامر الإدارة", style=discord.ButtonStyle.danger, emoji="🛡️")
+    @discord.ui.button(label="أوامر الإدارة", style=discord.ButtonStyle.danger, emoji="🛡️", custom_id="admin_commands")
     async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ هذا القسم للمشرفين فقط", ephemeral=True)
