@@ -166,7 +166,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "إساءة/استهزاء", 60)
 
-    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.warning, emoji="🔗")
+    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.secondary, emoji="🔗")
     async def links_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
@@ -174,7 +174,7 @@ class MuteOptionsView(discord.ui.View):
         
         await self.execute_mute(interaction, "روابط/إعلانات", 120)
 
-    @discord.ui.button(label="سبام", style=discord.ButtonStyle.warning, emoji="📢")
+    @discord.ui.button(label="سبام", style=discord.ButtonStyle.secondary, emoji="📢")
     async def spam_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not has_admin_permissions(self.ctx):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
