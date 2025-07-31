@@ -25,17 +25,12 @@ async def send_error_message(ctx, message, duration: int = 5):
         pass
 
 async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
-    """Send hidden message that only the command user can see"""
-    # Send message and delete after duration
+    """Send hidden message as ephemeral"""
+    # Send as ephemeral message
     if embed:
-        msg = await ctx.send(embed=embed)
+        await ctx.send(embed=embed, ephemeral=True)
     else:
-        msg = await ctx.send(message)
-    await asyncio.sleep(duration)
-    try:
-        await msg.delete()
-    except:
-        pass
+        await ctx.send(message, ephemeral=True)
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
@@ -200,7 +195,13 @@ async def show_mute_options(ctx):
     embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
-    await ctx.send(embed=embed)
+    # Send message with auto-delete after 15 seconds
+    msg = await ctx.send(embed=embed)
+    await asyncio.sleep(15)
+    try:
+        await msg.delete()
+    except:
+        pass
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -260,7 +261,13 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        await ctx.send(embed=embed)
+        # Send message with auto-delete after 10 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await msg.delete()
+        except:
+            pass
         
         # Remove mute after duration
         await asyncio.sleep(duration * 60)
@@ -327,7 +334,13 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        await ctx.send(embed=embed)
+        # Send message with auto-delete after 10 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await msg.delete()
+        except:
+            pass
         
         # Remove mute after duration
         await asyncio.sleep(duration * 60)
@@ -370,7 +383,13 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        await ctx.send(embed=embed)
+        # Send message with auto-delete after 10 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await msg.delete()
+        except:
+            pass
         
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لحظر الأعضاء!")
@@ -407,7 +426,13 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        await ctx.send(embed=embed)
+        # Send message with auto-delete after 10 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await msg.delete()
+        except:
+            pass
         
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لطرد الأعضاء!")
@@ -476,7 +501,13 @@ async def unmute_member(ctx, member: discord.Member = None):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        await ctx.send(embed=embed)
+        # Send message with auto-delete after 10 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await msg.delete()
+        except:
+            pass
         
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لفك الإسكات!")
