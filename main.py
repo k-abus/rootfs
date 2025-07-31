@@ -15,14 +15,9 @@ intents.message_content = True  # Required for commands to work
 bot = commands.Bot(command_prefix='', intents=intents)
 
 async def send_error_message(ctx, message, duration: int = 5):
-    """Send error message to user only in channel"""
-    # Send to channel but delete after specified duration
-    msg = await ctx.send(message)
-    await asyncio.sleep(duration)
-    try:
-        await msg.delete()
-    except:
-        pass
+    """Send error message as ephemeral"""
+    # Send as ephemeral message
+    await ctx.send(message, ephemeral=True)
 
 async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
     """Send hidden message as ephemeral"""
@@ -166,7 +161,7 @@ async def show_mute_options(ctx):
     
     # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ هذا الأمر متاح للأدمن فقط!", ephemeral=True)
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
 
     # Create embed for mute options
@@ -209,13 +204,8 @@ async def show_mute_options(ctx):
     embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
-    # Send as ephemeral message directly
-    try:
-        await ctx.send(embed=embed, ephemeral=True)
-    except Exception as e:
-        print(f"Error sending اسكات message: {e}")
-        # Fallback to regular message if ephemeral fails
-        await ctx.send(embed=embed)
+    # Send as ephemeral message
+    await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -663,8 +653,8 @@ async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
     
-    # Ignore if it's a known command error
-    if hasattr(error, 'original'):
+    # Ignore if it's a known command error or already handled
+    if hasattr(error, 'original') or hasattr(error, 'handled'):
         return
     
     # Send error message only to the user who used the command
@@ -678,7 +668,7 @@ async def on_command_error(ctx, error):
         error_message = "❌ معامل غير صحيح!"
     
     # Send error message as ephemeral
-    await ctx.send(error_message, ephemeral=True)
+    await send_error_message(ctx, error_message)
 
 # Run the bot
 if __name__ == "__main__":
