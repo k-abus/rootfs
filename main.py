@@ -591,11 +591,4 @@ async def on_ready():
     print(f'🆔 Bot ID: {bot.user.id}')
     print(f'📊 عدد السيرفرات: {len(bot.guilds)}')
 
-# Run the bot
-if __name__ == "__main__":
-    token = os.getenv('DISCORD_TOKEN')
-    if not token:
-        print("❌ لم يتم العثور على DISCORD_TOKEN في متغيرات البيئة")
-        exit(1)
-    
-    bot.run(token) 
+# Note: bot.run() is handled in app.py to avoid conflicts 

@@ -6,6 +6,7 @@ FSociety Discord Bot - Main Application
 import os
 import sys
 import threading
+import time
 from flask import Flask
 from main import bot
 
@@ -30,7 +31,7 @@ def run_bot():
     
     print("🚀 بدء تشغيل البوت...")
     try:
-        bot.run(token)
+        bot.run(token, log_handler=None)
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت: {e}")
         print("تأكد من صحة التوكن وصلاحيات البوت")
@@ -40,6 +41,9 @@ if __name__ == "__main__":
     bot_thread = threading.Thread(target=run_bot)
     bot_thread.daemon = True
     bot_thread.start()
+    
+    # Wait a bit for bot to start
+    time.sleep(2)
     
     # Start Flask app for Render
     port = int(os.environ.get('PORT', 8000))
