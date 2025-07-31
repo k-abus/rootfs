@@ -289,11 +289,18 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         except:
             pass
         
-        # Remove mute after duration
-        await asyncio.sleep(duration * 60)
-        if muted_role in member.roles:
-            await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-            await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+        # Schedule unmute after duration (using asyncio.create_task)
+        async def unmute_after_duration():
+            await asyncio.sleep(duration * 60)
+            try:
+                if muted_role in member.roles:
+                    await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
+                    await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+            except Exception as e:
+                print(f"Error in unmute task: {e}")
+        
+        # Start the unmute task
+        asyncio.create_task(unmute_after_duration())
             
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
@@ -362,11 +369,18 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
         except:
             pass
         
-        # Remove mute after duration
-        await asyncio.sleep(duration * 60)
-        if muted_role in member.roles:
-            await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-            await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+        # Schedule unmute after duration (using asyncio.create_task)
+        async def unmute_after_duration():
+            await asyncio.sleep(duration * 60)
+            try:
+                if muted_role in member.roles:
+                    await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
+                    await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+            except Exception as e:
+                print(f"Error in unmute task: {e}")
+        
+        # Start the unmute task
+        asyncio.create_task(unmute_after_duration())
             
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
@@ -389,7 +403,7 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
     if not is_valid:
         await send_error_message(ctx, f"❌ {error_message}")
         return
-
+    
     try:
         await member.ban(reason=f"حظر بواسطة {ctx.author.name} - السبب: {reason}")
         
@@ -432,7 +446,7 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
     if not is_valid:
         await send_error_message(ctx, f"❌ {error_message}")
         return
-
+    
     try:
         await member.kick(reason=f"طرد بواسطة {ctx.author.name} - السبب: {reason}")
         
@@ -471,12 +485,27 @@ async def clear_messages(ctx, amount: int):
         return
     
     if amount < 1 or amount > 100:
-        await send_error_message(ctx, "❌ يمكنك مسح من 1 إلى 100 رسالة فقط!")
+        await send_error_message(ctx, "❌ يرجى إدخال رقم بين 1 و 100!")
         return
-
+    
     try:
         deleted = await ctx.channel.purge(limit=amount + 1)  # +1 to include command message
-        await ctx.send(f"🗑️ تم مسح {len(deleted) - 1} رسالة", delete_after=5)
+        
+        embed = discord.Embed(
+            title="🗑️ تم المسح بنجاح",
+            description=f"تم مسح {len(deleted) - 1} رسالة",
+            color=0x00ff00,
+            timestamp=datetime.datetime.now()
+        )
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        
+        # Send message with auto-delete after 5 seconds
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(5)
+        try:
+            await msg.delete()
+        except:
+            pass
         
     except discord.Forbidden:
         await send_error_message(ctx, "❌ لا أملك صلاحيات لمسح الرسائل!")
