@@ -15,17 +15,14 @@ intents.message_content = True  # Required for commands to work
 bot = commands.Bot(command_prefix='', intents=intents)
 
 async def send_error_message(ctx, message):
-    """Send error message to user only"""
+    """Send error message to user only in channel"""
+    # Send to channel but delete after 5 seconds
+    msg = await ctx.send(message)
+    await asyncio.sleep(5)
     try:
-        await ctx.author.send(message)
+        await msg.delete()
     except:
-        # If DM fails, send to channel but delete after 5 seconds
-        msg = await ctx.send(message)
-        await asyncio.sleep(5)
-        try:
-            await msg.delete()
-        except:
-            pass
+        pass
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
@@ -40,6 +37,17 @@ def validate_member_permissions(ctx, member):
     if member == ctx.author:
         return False, "لا يمكنك ميوت/حظر/طرد نفسك!"
     return True, ""
+
+def has_admin_permissions(ctx):
+    """Check if user has admin role or admin permissions"""
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    has_admin_role = admin_role and admin_role in ctx.author.roles
+    has_admin_permissions = (ctx.author.guild_permissions.administrator or 
+                           ctx.author.guild_permissions.manage_roles or 
+                           ctx.author.guild_permissions.ban_members or 
+                           ctx.author.guild_permissions.kick_members or 
+                           ctx.author.guild_permissions.manage_messages)
+    return has_admin_role or has_admin_permissions
 
 async def create_muted_role(ctx):
     """Create muted role if it doesn't exist"""
@@ -134,9 +142,8 @@ async def show_mute_options(ctx):
     
     log_command_usage(ctx, "اسكات")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
 
@@ -188,9 +195,8 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
     
     log_command_usage(ctx, "اسكت")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
@@ -260,9 +266,8 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
     
     log_command_usage(ctx, "ميوت")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
@@ -328,9 +333,8 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
     
     log_command_usage(ctx, "باند")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
@@ -366,9 +370,8 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
     
     log_command_usage(ctx, "كيك")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
@@ -404,9 +407,8 @@ async def clear_messages(ctx, amount: int):
     
     log_command_usage(ctx, "مسح")
     
-    # Check if user has admin role
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if not admin_role or admin_role not in ctx.author.roles:
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
         return
     
@@ -433,15 +435,10 @@ async def unmute_member(ctx, member: discord.Member = None):
     if member is None:
         member = ctx.author
     
-    # Check if user has admin role (only required for unmuting others)
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    if member != ctx.author and (not admin_role or admin_role not in ctx.author.roles):
+    # Check if user has admin permissions (only required for unmuting others)
+    if member != ctx.author and not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ يمكنك فك إسكاتك فقط! للأدمن فك إسكات الآخرين")
         return
-    
-    # If no member specified, unmute the command user
-    if member is None:
-        member = ctx.author
     
     # Find muted role
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
@@ -617,17 +614,13 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.BadArgument):
         error_message = "❌ معامل غير صحيح!"
     
-    # Send error message only to the user who used the command
+    # Send error message to channel but delete after 5 seconds
+    msg = await ctx.send(error_message)
+    await asyncio.sleep(5)
     try:
-        await ctx.author.send(error_message)
+        await msg.delete()
     except:
-        # If DM fails, send to channel but delete after 5 seconds
-        msg = await ctx.send(error_message)
-        await asyncio.sleep(5)
-        try:
-            await msg.delete()
-        except:
-            pass
+        pass
 
 # Run the bot
 if __name__ == "__main__":
