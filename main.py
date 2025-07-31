@@ -116,7 +116,7 @@ async def show_mute_info(ctx):
     log_command_usage(ctx, 'اسكات')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     embed = discord.Embed(
@@ -135,7 +135,7 @@ async def show_mute_info(ctx):
     embed.add_field(name="📝 كيفية الاستخدام", value="اكتب: اسكت @عضو السبب", inline=False)
     embed.add_field(name="💡 أمثلة", value="اسكت @عضو سب\nاسكت @عضو روابط\nاسكت @عضو سبام", inline=False)
     
-    await ctx.send(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -143,13 +143,13 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
     log_command_usage(ctx, 'اسكت')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     # Validate member
     can_target, error_msg = validate_member_permissions(ctx, member)
     if not can_target:
-        await ctx.send(f"❌ {error_msg}", ephemeral=True)
+        await ctx.respond(f"❌ {error_msg}", ephemeral=True)
         return
     
     try:
@@ -203,7 +203,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         asyncio.create_task(unmute_after_duration())
         
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 @bot.command(name='تكلم')
 async def unmute_member(ctx, member: discord.Member):
@@ -211,17 +211,17 @@ async def unmute_member(ctx, member: discord.Member):
     log_command_usage(ctx, 'تكلم')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     try:
         muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
         if not muted_role:
-            await ctx.send("❌ لا يوجد دور 'Muted' في السيرفر", ephemeral=True)
+            await ctx.respond("❌ لا يوجد دور 'Muted' في السيرفر", ephemeral=True)
             return
         
         if muted_role not in member.roles:
-            await ctx.send(f"❌ {member.mention} غير مكتوم أصلاً", ephemeral=True)
+            await ctx.respond(f"❌ {member.mention} غير مكتوم أصلاً", ephemeral=True)
             return
         
         await member.remove_roles(muted_role, reason=f"إلغاء ميوت بواسطة {ctx.author}")
@@ -241,7 +241,7 @@ async def unmute_member(ctx, member: discord.Member):
             pass
         
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 @bot.command(name='اسكاتي')
 async def check_mute_status(ctx, member: discord.Member = None):
@@ -253,7 +253,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
     
     # Check if user is checking someone else's status
     if member != ctx.author and not has_admin_permissions(ctx):
-        await ctx.send("❌ لا يمكنك التحقق من حالة إسكات الآخرين", ephemeral=True)
+        await ctx.respond("❌ لا يمكنك التحقق من حالة إسكات الآخرين", ephemeral=True)
         return
     
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
@@ -263,7 +263,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
             description=f"{member.mention} غير مكتوم",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True)
         return
     
     # Get mute info
@@ -278,7 +278,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="بواسطة", value=muter.mention if muter else "غير معروف", inline=True)
     embed.add_field(name="الوقت المتبقي", value=format_time_remaining(remaining_time), inline=True)
     
-    await ctx.send(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
@@ -311,7 +311,7 @@ async def help_command(ctx):
     
     embed.add_field(name="💡 نصائح", value="• استخدم @عضو لمنشن العضو\n• اكتب السبب بعد الأمر\n• الرسائل تختفي تلقائياً", inline=False)
     
-    await ctx.send(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True)
 
 @bot.command(name='باند')
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -319,13 +319,13 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
     log_command_usage(ctx, 'باند')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     # Validate member
     can_target, error_msg = validate_member_permissions(ctx, member)
     if not can_target:
-        await ctx.send(f"❌ {error_msg}", ephemeral=True)
+        await ctx.respond(f"❌ {error_msg}", ephemeral=True)
         return
     
     try:
@@ -347,7 +347,7 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
             pass
         
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 @bot.command(name='كيك')
 async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -355,13 +355,13 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
     log_command_usage(ctx, 'كيك')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     # Validate member
     can_target, error_msg = validate_member_permissions(ctx, member)
     if not can_target:
-        await ctx.send(f"❌ {error_msg}", ephemeral=True)
+        await ctx.respond(f"❌ {error_msg}", ephemeral=True)
         return
     
     try:
@@ -383,7 +383,7 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
             pass
         
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 @bot.command(name='مسح')
 async def clear_messages(ctx, amount: int = 5):
@@ -391,11 +391,11 @@ async def clear_messages(ctx, amount: int = 5):
     log_command_usage(ctx, 'مسح')
     
     if not has_admin_permissions(ctx):
-        await ctx.send("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
     if amount < 1 or amount > 100:
-        await ctx.send("❌ يرجى تحديد عدد بين 1 و 100", ephemeral=True)
+        await ctx.respond("❌ يرجى تحديد عدد بين 1 و 100", ephemeral=True)
         return
     
     try:
@@ -416,7 +416,7 @@ async def clear_messages(ctx, amount: int = 5):
             pass
         
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 # Error handling
 @bot.event
@@ -429,7 +429,7 @@ async def on_command_error(ctx, error):
         return
     
     error_message = "❌ حدث خطأ في تنفيذ الأمر"
-    await ctx.send(error_message, ephemeral=True)
+    await ctx.respond(error_message, ephemeral=True)
 
 # Bot events
 @bot.event
