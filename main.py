@@ -263,7 +263,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
             description=f"{member.mention} غير مكتوم",
             color=discord.Color.green()
         )
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.send(embed=embed)
         return
     
     # Get mute info
@@ -278,7 +278,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="بواسطة", value=muter.mention if muter else "غير معروف", inline=True)
     embed.add_field(name="الوقت المتبقي", value=format_time_remaining(remaining_time), inline=True)
     
-    await ctx.respond(embed=embed, ephemeral=True)
+    await ctx.send(embed=embed)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
