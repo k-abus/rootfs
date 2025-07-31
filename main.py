@@ -10,25 +10,23 @@ load_dotenv()
 
 # Bot setup
 intents = discord.Intents.default()
-intents.message_content = True  # Required for commands to work
-
+intents.message_content = True
 bot = commands.Bot(command_prefix='', intents=intents)
 
-# Global variable to track sent messages to prevent duplicates
+# Global set to prevent duplicate messages
 sent_messages = set()
 
+# Helper functions
 async def send_error_message(ctx, message, duration: int = 5):
     """Send error message as ephemeral"""
     message_id = f"{ctx.message.id}_{message}"
     if message_id in sent_messages:
         return
-    
     sent_messages.add(message_id)
     try:
         await ctx.send(message, ephemeral=True)
     except Exception as e:
         print(f"Error sending ephemeral message: {e}")
-        # Fallback to regular message
         await ctx.send(message)
 
 async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
@@ -36,7 +34,6 @@ async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10)
     message_id = f"{ctx.message.id}_{'hidden'}"
     if message_id in sent_messages:
         return
-    
     sent_messages.add(message_id)
     try:
         if embed:
@@ -45,7 +42,6 @@ async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10)
             await ctx.send(message, ephemeral=True)
     except Exception as e:
         print(f"Error sending hidden message: {e}")
-        # Fallback to regular message
         if embed:
             await ctx.send(embed=embed)
         else:
@@ -53,17 +49,17 @@ async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10)
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
-    print(f"Command used: {command_name} by {ctx.author.name} in {ctx.guild.name}")
+    print(f"Command '{command_name}' used by {ctx.author} in {ctx.guild}")
 
 def validate_member_permissions(ctx, member):
-    """Validate if member can be muted/banned/kicked"""
+    """Check if member can be targeted by moderation commands"""
     if member.bot:
-        return False, "لا يمكنك ميوت/حظر/طرد البوتات!"
-    if member.guild_permissions.administrator:
-        return False, "لا يمكنك ميوت/حظر/طرد المشرفين!"
+        return False, "لا يمكن التصرف مع البوتات"
     if member == ctx.author:
-        return False, "لا يمكنك ميوت/حظر/طرد نفسك!"
-    return True, ""
+        return False, "لا يمكنك التصرف مع نفسك"
+    if member.guild_permissions.administrator:
+        return False, "لا يمكن التصرف مع المشرفين"
+    return True, None
 
 def has_admin_permissions(ctx):
     """Check if user has admin role or admin permissions"""
@@ -80,31 +76,24 @@ async def create_muted_role(ctx):
     """Create muted role if it doesn't exist"""
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
     if not muted_role:
-        try:
-            muted_role = await ctx.guild.create_role(name="Muted", reason="إنشاء دور الميوت")
-            for channel in ctx.guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
-                elif isinstance(channel, discord.VoiceChannel):
-                    await channel.set_permissions(muted_role, speak=False, connect=False)
-            return muted_role
-        except discord.Forbidden:
-            return None
+        muted_role = await ctx.guild.create_role(name="Muted", color=discord.Color.dark_gray())
+        for channel in ctx.guild.channels:
+            if isinstance(channel, discord.TextChannel):
+                await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
     return muted_role
 
 def format_time_remaining(seconds):
-    """Format remaining time in Arabic"""
+    """Format time remaining in Arabic"""
     if seconds <= 0:
-        return "انتهى"
+        return "انتهت المدة"
     
-    minutes = seconds // 60
-    remaining_seconds = seconds % 60
+    minutes = int(seconds // 60)
+    remaining_seconds = int(seconds % 60)
     
-    if minutes > 0:
-        if remaining_seconds > 0:
-            return f"{minutes} دقيقة و {remaining_seconds} ثانية"
-        else:
-            return f"{minutes} دقيقة"
+    if minutes > 0 and remaining_seconds > 0:
+        return f"{minutes} دقيقة و {remaining_seconds} ثانية"
+    elif minutes > 0:
+        return f"{minutes} دقيقة"
     else:
         return f"{remaining_seconds} ثانية"
 
@@ -122,179 +111,247 @@ async def get_mute_info(ctx, member):
             if entry.target == member:
                 for change in entry.changes:
                     if change.key == 'roles':
-                        # Check if this is a mute action (role was added)
                         if muted_role in change.after and muted_role not in change.before:
-                            # Extract reason from the audit log
                             reason = entry.reason or "لا يوجد سبب محدد"
-                            
-                            # Clean up the reason - remove the "ميوت بواسطة" part
                             if "ميوت بواسطة" in reason:
-                                # Extract just the reason part
                                 reason_parts = reason.split(" - السبب: ")
                                 if len(reason_parts) > 1:
                                     reason = reason_parts[1]
                                 else:
                                     reason = reason.replace("ميوت بواسطة", "").strip()
                             
-                            # Map reason keywords to durations
                             reason_mapping = {
                                 "سب": 30, "شتائم": 30, "اساءة": 60, "استهزاء": 60,
                                 "روابط": 120, "اعلانات": 120, "سبام": 45,
                                 "تجاهل": 15, "تحذيرات": 15
                             }
-                            
                             duration_minutes = 30  # default
                             for keyword, dur in reason_mapping.items():
                                 if keyword in reason.lower():
                                     duration_minutes = dur
                                     break
                             
-                            # Calculate remaining time
                             mute_time = entry.created_at
                             current_time = datetime.datetime.now(mute_time.tzinfo)
                             elapsed_time = (current_time - mute_time).total_seconds()
                             remaining_time = (duration_minutes * 60) - elapsed_time
                             
-                            # Return the first (most recent) mute action found
                             return reason, entry.user, mute_time, remaining_time
         
-        # If no audit log entry found, try to get basic info
         return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
     except Exception as e:
         print(f"Error in get_mute_info: {e}")
         return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
 
-# Mute durations in seconds
-MUTE_DURATIONS = {
-    "سب أو شتائم": 30 * 60,  # 30 minutes
-    "إساءة أو استهزاء": 60 * 60,  # 1 hour
-    "روابط بدون إذن": 2 * 60 * 60,  # 2 hours
-    "سبام": 45 * 60,  # 45 minutes
-    "تجاهل التحذيرات": 15 * 60,  # 15 minutes
-}
+# Button Views for interactive commands
+class MuteOptionsView(discord.ui.View):
+    def __init__(self, member: discord.Member, ctx):
+        super().__init__(timeout=60)
+        self.member = member
+        self.ctx = ctx
 
-@bot.event
-async def on_ready():
-    print(f'{bot.user} تم تشغيل البوت بنجاح!')
+    @discord.ui.button(label="سب/شتائم", style=discord.ButtonStyle.danger, emoji="🤬")
+    async def swear_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(self.ctx):
+            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
+            return
+        
+        await self.execute_mute(interaction, "سب/شتائم", 30)
 
+    @discord.ui.button(label="إساءة/استهزاء", style=discord.ButtonStyle.danger, emoji="😤")
+    async def abuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(self.ctx):
+            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
+            return
+        
+        await self.execute_mute(interaction, "إساءة/استهزاء", 60)
+
+    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.warning, emoji="🔗")
+    async def links_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(self.ctx):
+            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
+            return
+        
+        await self.execute_mute(interaction, "روابط/إعلانات", 120)
+
+    @discord.ui.button(label="سبام", style=discord.ButtonStyle.warning, emoji="📢")
+    async def spam_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(self.ctx):
+            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
+            return
+        
+        await self.execute_mute(interaction, "سبام", 45)
+
+    @discord.ui.button(label="تجاهل التحذيرات", style=discord.ButtonStyle.secondary, emoji="⚠️")
+    async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(self.ctx):
+            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
+            return
+        
+        await self.execute_mute(interaction, "تجاهل التحذيرات", 15)
+
+    async def execute_mute(self, interaction: discord.Interaction, reason: str, duration_minutes: int):
+        """Execute mute with the selected reason"""
+        try:
+            # Validate member
+            can_target, error_msg = validate_member_permissions(self.ctx, self.member)
+            if not can_target:
+                await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
+                return
+
+            # Create muted role
+            muted_role = await create_muted_role(self.ctx)
+            
+            # Apply mute
+            await self.member.add_roles(muted_role, reason=f"ميوت بواسطة {self.ctx.author} - السبب: {reason}")
+            
+            # Create embed
+            embed = discord.Embed(
+                title="✅ تم الإسكات بنجاح",
+                description=f"تم إسكات {self.member.mention}",
+                color=discord.Color.red()
+            )
+            embed.add_field(name="السبب", value=reason, inline=True)
+            embed.add_field(name="المدة", value=f"{duration_minutes} دقيقة", inline=True)
+            embed.add_field(name="بواسطة", value=self.ctx.author.mention, inline=True)
+            embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration_minutes} دقيقة")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+            # Schedule unmute
+            async def unmute_after_duration():
+                await asyncio.sleep(duration_minutes * 60)
+                try:
+                    if muted_role in self.member.roles:
+                        await self.member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
+                        await self.ctx.send(f"✅ تم إلغاء ميوت {self.member.mention} بعد انتهاء المدة")
+                except Exception as e:
+                    print(f"Error in unmute task: {e}")
+            
+            asyncio.create_task(unmute_after_duration())
+            
+        except Exception as e:
+            await interaction.response.send_message(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+
+class HelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+
+    @discord.ui.button(label="الأوامر العامة", style=discord.ButtonStyle.primary, emoji="📋")
+    async def general_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="📋 الأوامر العامة",
+            description="الأوامر المتاحة لجميع الأعضاء",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="اسكاتي", value="عرض حالة الإسكات الخاصة بك", inline=False)
+        embed.add_field(name="مساعدة", value="عرض قائمة الأوامر المتاحة", inline=False)
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="أوامر الإدارة", style=discord.ButtonStyle.danger, emoji="🛡️")
+    async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not has_admin_permissions(interaction):
+            await interaction.response.send_message("❌ هذا القسم للمشرفين فقط", ephemeral=True)
+            return
+        
+        embed = discord.Embed(
+            title="🛡️ أوامر الإدارة",
+            description="الأوامر المتاحة للمشرفين فقط",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="اسكات @عضو", value="عرض خيارات الإسكات", inline=False)
+        embed.add_field(name="اسكت @عضو سبب", value="إسكات مباشر", inline=False)
+        embed.add_field(name="تكلم @عضو", value="إلغاء الإسكات", inline=False)
+        embed.add_field(name="باند @عضو", value="حظر العضو", inline=False)
+        embed.add_field(name="كيك @عضو", value="طرد العضو", inline=False)
+        embed.add_field(name="مسح عدد", value="حذف الرسائل", inline=False)
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# Bot commands
 @bot.command(name='اسكات')
-async def show_mute_options(ctx):
-    """عرض خيارات الميوت للمشرفين فقط"""
+async def show_mute_options(ctx, member: discord.Member):
+    """Show mute options with buttons (admin only)"""
+    log_command_usage(ctx, 'اسكات')
     
-    log_command_usage(ctx, "اسكات")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
-
-    # Create embed for mute options
+    
+    if not member:
+        await send_error_message(ctx, "❌ يرجى منشن العضو المراد إسكاته")
+        return
+    
+    # Validate member
+    can_target, error_msg = validate_member_permissions(ctx, member)
+    if not can_target:
+        await send_error_message(ctx, f"❌ {error_msg}")
+        return
+    
+    # Create embed
     embed = discord.Embed(
-        title="🔇 خيارات الميوت",
-        description="اختر سبب الميوت:",
-        color=0xff6b6b
+        title="🔇 خيارات الإسكات",
+        description=f"اختر سبب الإسكات لـ {member.mention}",
+        color=discord.Color.orange()
     )
+    embed.add_field(name="🤬 سب/شتائم", value="30 دقيقة", inline=True)
+    embed.add_field(name="😤 إساءة/استهزاء", value="60 دقيقة", inline=True)
+    embed.add_field(name="🔗 روابط/إعلانات", value="120 دقيقة", inline=True)
+    embed.add_field(name="📢 سبام", value="45 دقيقة", inline=True)
+    embed.add_field(name="⚠️ تجاهل التحذيرات", value="15 دقيقة", inline=True)
     
-    embed.add_field(
-        name="1️⃣ سب أو شتائم عامة",
-        value="⏱️ مدة الإسكات: 30 دقيقة\n🔹 ملاحظة: إذا تكررت، زيدها إلى ساعة أو أكثر.",
-        inline=False
-    )
+    # Create view with buttons
+    view = MuteOptionsView(member, ctx)
     
-    embed.add_field(
-        name="2️⃣ إساءة أو استهزاء بعضو أو مشرف",
-        value="⏱️ مدة الإسكات: 1 ساعة\n🔹 إذا كانت الإساءة مباشرة أو متعمدة، يمكن توصل لـ 3 ساعات.",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="3️⃣ نشر روابط بدون إذن أو إعلانات",
-        value="⏱️ مدة الإسكات: 2 ساعات\n🔹 خاصة إذا كانت روابط خارجية، يمكن توصل إلى 6 ساعات لو تكررت.",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="4️⃣ سبام (إرسال نفس الرسالة أكثر من مرة بسرعة)",
-        value="⏱️ مدة الإسكات: 45 دقيقة\n🔹 إذا كان مزعج أو يستخدم @الكل، زيدها لـ 1.5 ساعة.",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="5️⃣ التحدث في أماكن غير مخصصة أو تجاهل التحذيرات",
-        value="⏱️ مدة الإسكات: 15 - 30 دقيقة\n🔹 المدة قصيرة لأنها مخالفة بسيطة، لكن تتضاعف لو تكررت.",
-        inline=False
-    )
-    
-    embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
-    embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
-    
-    # Send as ephemeral message - only visible to admin who used the command
-    try:
-        await ctx.send(embed=embed, ephemeral=True)
-    except Exception as e:
-        print(f"Error sending اسكات message: {e}")
-        # Fallback to regular message if ephemeral fails
-        await ctx.send(embed=embed)
+    await ctx.send(embed=embed, view=view, ephemeral=True)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
-    """ميوت مباشر مع السبب"""
+    """Direct mute with reason (admin only)"""
+    log_command_usage(ctx, 'اسكت')
     
-    log_command_usage(ctx, "اسكت")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
-    # Validate member permissions
-    is_valid, error_message = validate_member_permissions(ctx, member)
-    if not is_valid:
-        await send_error_message(ctx, f"❌ {error_message}")
-        return
-
-    # Map reason keywords to durations
-    reason_mapping = {
-        "سب": 30,
-        "شتائم": 30,
-        "اساءة": 60,
-        "استهزاء": 60,
-        "روابط": 120,
-        "اعلانات": 120,
-        "سبام": 45,
-        "تجاهل": 15,
-        "تحذيرات": 15
-    }
-    
-    # Find matching reason and duration
-    duration = 30  # default duration
-    for keyword, dur in reason_mapping.items():
-        if keyword in reason.lower():
-            duration = dur
-            break
-    
-    # Find or create muted role
-    muted_role = await create_muted_role(ctx)
-    if not muted_role:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
+    # Validate member
+    can_target, error_msg = validate_member_permissions(ctx, member)
+    if not can_target:
+        await send_error_message(ctx, f"❌ {error_msg}")
         return
     
-    # Apply mute
     try:
-        await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author.name} - السبب: {reason}")
+        # Create muted role
+        muted_role = await create_muted_role(ctx)
         
+        # Map reason to duration
+        reason_mapping = {
+            "سب": 30, "شتائم": 30, "اساءة": 60, "استهزاء": 60,
+            "روابط": 120, "اعلانات": 120, "سبام": 45,
+            "تجاهل": 15, "تحذيرات": 15
+        }
+        
+        duration = 30  # default
+        for keyword, dur in reason_mapping.items():
+            if keyword in reason.lower():
+                duration = dur
+                break
+        
+        # Apply mute
+        await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author} - السبب: {reason}")
+        
+        # Create embed
         embed = discord.Embed(
-            title="🔇 تم الميوت بنجاح",
-            description=f"تم ميوت {member.mention}",
-            color=0xff6b6b,
-            timestamp=datetime.datetime.now()
+            title="✅ تم الإسكات بنجاح",
+            description=f"تم إسكات {member.mention}",
+            color=discord.Color.red()
         )
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
+        embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration} دقيقة")
         
-        # Send message with auto-delete after 10 seconds
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(10)
         try:
@@ -302,7 +359,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         except:
             pass
         
-        # Schedule unmute after duration (using asyncio.create_task)
+        # Schedule unmute
         async def unmute_after_duration():
             await asyncio.sleep(duration * 60)
             try:
@@ -312,69 +369,39 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
             except Exception as e:
                 print(f"Error in unmute task: {e}")
         
-        # Start the unmute task
         asyncio.create_task(unmute_after_duration())
-            
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
+        
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
-@bot.command(name='ميوت')
-async def execute_mute(ctx, member: discord.Member, reason_number: int, duration_minutes: int = None):
-    """تنفيذ الميوت بناءً على السبب المختار"""
+@bot.command(name='تكلم')
+async def unmute_member(ctx, member: discord.Member):
+    """Unmute member (admin only)"""
+    log_command_usage(ctx, 'تكلم')
     
-    log_command_usage(ctx, "ميوت")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
-    # Validate member permissions
-    is_valid, error_message = validate_member_permissions(ctx, member)
-    if not is_valid:
-        await send_error_message(ctx, f"❌ {error_message}")
-        return
-
-    # Map reason numbers to reasons and durations
-    reasons = {
-        1: ("سب أو شتائم عامة", 30),
-        2: ("إساءة أو استهزاء بعضو أو مشرف", 60),
-        3: ("نشر روابط بدون إذن أو إعلانات", 120),
-        4: ("سبام (إرسال نفس الرسالة أكثر من مرة بسرعة)", 45),
-        5: ("التحدث في أماكن غير مخصصة أو تجاهل التحذيرات", 15)
-    }
-    
-    if reason_number not in reasons:
-        await send_error_message(ctx, "❌ رقم السبب غير صحيح! استخدم أرقام من 1 إلى 5")
-        return
-    
-    reason, default_duration = reasons[reason_number]
-    duration = duration_minutes if duration_minutes else default_duration
-    
-    # Find or create muted role
-    muted_role = await create_muted_role(ctx)
-    if not muted_role:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لإنشاء دور الميوت!")
-        return
-    
-    # Apply mute
     try:
-        await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author.name} - السبب: {reason}")
+        muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+        if not muted_role:
+            await send_error_message(ctx, "❌ لا يوجد دور 'Muted' في السيرفر")
+            return
+        
+        if muted_role not in member.roles:
+            await send_error_message(ctx, f"❌ {member.mention} غير مكتوم أصلاً")
+            return
+        
+        await member.remove_roles(muted_role, reason=f"إلغاء ميوت بواسطة {ctx.author}")
         
         embed = discord.Embed(
-            title="🔇 تم الميوت بنجاح",
-            description=f"تم ميوت {member.mention}",
-            color=0xff6b6b,
-            timestamp=datetime.datetime.now()
+            title="✅ تم إلغاء الإسكات",
+            description=f"تم إلغاء إسكات {member.mention}",
+            color=discord.Color.green()
         )
-        embed.add_field(name="السبب", value=reason, inline=True)
-        embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        # Send message with auto-delete after 10 seconds
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(10)
         try:
@@ -382,55 +409,89 @@ async def execute_mute(ctx, member: discord.Member, reason_number: int, duration
         except:
             pass
         
-        # Schedule unmute after duration (using asyncio.create_task)
-        async def unmute_after_duration():
-            await asyncio.sleep(duration * 60)
-            try:
-                if muted_role in member.roles:
-                    await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-                    await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
-            except Exception as e:
-                print(f"Error in unmute task: {e}")
-        
-        # Start the unmute task
-        asyncio.create_task(unmute_after_duration())
-            
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لإضافة دور الميوت!")
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
+
+@bot.command(name='اسكاتي')
+async def check_mute_status(ctx, member: discord.Member = None):
+    """Check mute status (everyone)"""
+    log_command_usage(ctx, 'اسكاتي')
+    
+    if not member:
+        member = ctx.author
+    
+    # Check if user is checking someone else's status
+    if member != ctx.author and not has_admin_permissions(ctx):
+        await send_error_message(ctx, "❌ لا يمكنك التحقق من حالة إسكات الآخرين")
+        return
+    
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    if not muted_role or muted_role not in member.roles:
+        embed = discord.Embed(
+            title="🔊 حالة الإسكات",
+            description=f"{member.mention} غير مكتوم",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed, ephemeral=True)
+        return
+    
+    # Get mute info
+    reason, muter, mute_time, remaining_time = await get_mute_info(ctx, member)
+    
+    embed = discord.Embed(
+        title="🔇 حالة الإسكات",
+        description=f"{member.mention} مكتوم",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="السبب", value=reason, inline=True)
+    embed.add_field(name="بواسطة", value=muter.mention if muter else "غير معروف", inline=True)
+    embed.add_field(name="الوقت المتبقي", value=format_time_remaining(remaining_time), inline=True)
+    
+    await ctx.send(embed=embed, ephemeral=True)
+
+@bot.command(name='مساعدة')
+async def help_command(ctx):
+    """Help command with buttons (everyone)"""
+    log_command_usage(ctx, 'مساعدة')
+    
+    embed = discord.Embed(
+        title="🤖 بوت الإدارة",
+        description="مرحباً! أنا بوت إدارة متقدم مع ميزات تفاعلية",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="💡 كيف تستخدم البوت؟", value="اضغط على الأزرار أدناه لرؤية الأوامر المتاحة", inline=False)
+    
+    # Create view with buttons
+    view = HelpView()
+    
+    await ctx.send(embed=embed, view=view, ephemeral=True)
 
 @bot.command(name='باند')
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
-    """حظر عضو من السيرفر"""
+    """Ban member (admin only)"""
+    log_command_usage(ctx, 'باند')
     
-    log_command_usage(ctx, "باند")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
-    # Validate member permissions
-    is_valid, error_message = validate_member_permissions(ctx, member)
-    if not is_valid:
-        await send_error_message(ctx, f"❌ {error_message}")
+    # Validate member
+    can_target, error_msg = validate_member_permissions(ctx, member)
+    if not can_target:
+        await send_error_message(ctx, f"❌ {error_msg}")
         return
     
     try:
-        await member.ban(reason=f"حظر بواسطة {ctx.author.name} - السبب: {reason}")
+        await member.ban(reason=f"حظر بواسطة {ctx.author} - السبب: {reason}")
         
         embed = discord.Embed(
             title="🔨 تم الحظر بنجاح",
             description=f"تم حظر {member.mention}",
-            color=0xff0000,
-            timestamp=datetime.datetime.now()
+            color=discord.Color.dark_red()
         )
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        # Send message with auto-delete after 10 seconds
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(10)
         try:
@@ -438,42 +499,35 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         except:
             pass
         
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لحظر الأعضاء!")
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='كيك')
 async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
-    """طرد عضو من السيرفر"""
+    """Kick member (admin only)"""
+    log_command_usage(ctx, 'كيك')
     
-    log_command_usage(ctx, "كيك")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
-    # Validate member permissions
-    is_valid, error_message = validate_member_permissions(ctx, member)
-    if not is_valid:
-        await send_error_message(ctx, f"❌ {error_message}")
+    # Validate member
+    can_target, error_msg = validate_member_permissions(ctx, member)
+    if not can_target:
+        await send_error_message(ctx, f"❌ {error_msg}")
         return
     
     try:
-        await member.kick(reason=f"طرد بواسطة {ctx.author.name} - السبب: {reason}")
+        await member.kick(reason=f"طرد بواسطة {ctx.author} - السبب: {reason}")
         
         embed = discord.Embed(
             title="👢 تم الطرد بنجاح",
             description=f"تم طرد {member.mention}",
-            color=0xffa500,
-            timestamp=datetime.datetime.now()
+            color=discord.Color.orange()
         )
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
         
-        # Send message with auto-delete after 10 seconds
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(10)
         try:
@@ -481,38 +535,32 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         except:
             pass
         
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لطرد الأعضاء!")
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
 
 @bot.command(name='مسح')
-async def clear_messages(ctx, amount: int):
-    """مسح عدد محدد من الرسائل"""
+async def clear_messages(ctx, amount: int = 5):
+    """Clear messages (admin only)"""
+    log_command_usage(ctx, 'مسح')
     
-    log_command_usage(ctx, "مسح")
-    
-    # Check if user has admin permissions
     if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
     if amount < 1 or amount > 100:
-        await send_error_message(ctx, "❌ يرجى إدخال رقم بين 1 و 100!")
+        await send_error_message(ctx, "❌ يرجى تحديد عدد بين 1 و 100")
         return
     
     try:
         deleted = await ctx.channel.purge(limit=amount + 1)  # +1 to include command message
         
         embed = discord.Embed(
-            title="🗑️ تم المسح بنجاح",
-            description=f"تم مسح {len(deleted) - 1} رسالة",
-            color=0x00ff00,
-            timestamp=datetime.datetime.now()
+            title="🗑️ تم الحذف بنجاح",
+            description=f"تم حذف {len(deleted) - 1} رسالة",
+            color=discord.Color.green()
         )
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        # Send message with auto-delete after 5 seconds
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(5)
         try:
@@ -520,234 +568,34 @@ async def clear_messages(ctx, amount: int):
         except:
             pass
         
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لمسح الرسائل!")
     except Exception as e:
         await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
-
-@bot.command(name='تكلم')
-async def unmute_member(ctx, member: discord.Member = None):
-    """فك الإسكات عن عضو"""
-    
-    log_command_usage(ctx, "تكلم")
-    
-    # Check if user has admin permissions
-    if not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
-        return
-    
-    # If no member specified, unmute the command user
-    if member is None:
-        member = ctx.author
-    
-    # Find muted role
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
-    if not muted_role:
-        await send_error_message(ctx, "❌ لا يوجد دور الميوت في السيرفر!")
-        return
-    
-    # Check if member is muted
-    if muted_role not in member.roles:
-        await send_error_message(ctx, f"❌ {member.mention} ليس مكتوم!")
-        return
-    
-    try:
-        await member.remove_roles(muted_role, reason=f"فك الإسكات بواسطة {ctx.author.name}")
-        
-        embed = discord.Embed(
-            title="🔊 تم فك الإسكات بنجاح",
-            description=f"تم فك الإسكات عن {member.mention}",
-            color=0x00ff00,
-            timestamp=datetime.datetime.now()
-        )
-        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        
-        # Send message with auto-delete after 10 seconds
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await msg.delete()
-        except:
-            pass
-        
-    except discord.Forbidden:
-        await send_error_message(ctx, "❌ لا أملك صلاحيات لفك الإسكات!")
-    except Exception as e:
-        await send_error_message(ctx, f"❌ حدث خطأ: {str(e)}")
-
-@bot.command(name='اسكاتي')
-async def check_mute_status(ctx, member: discord.Member = None):
-    """فحص حالة الإسكات للعضو"""
-    
-    log_command_usage(ctx, "اسكاتي")
-    
-    # If no member specified, check the command user
-    if member is None:
-        member = ctx.author
-    
-    # Find muted role
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
-    if not muted_role:
-        await send_error_message(ctx, "❌ لا يوجد دور الميوت في السيرفر!")
-        return
-    
-    # Check if member is muted
-    if muted_role not in member.roles:
-        embed = discord.Embed(
-            title="✅ حالة الإسكات",
-            description=f"{member.mention} ليس مكتوم",
-            color=0x00ff00,
-            timestamp=datetime.datetime.now()
-        )
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        try:
-            await ctx.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            print(f"Error sending اسكاتي message: {e}")
-            await ctx.send(embed=embed)
-        return
-    
-    # Get mute information
-    reason, muted_by, mute_date, remaining_time = await get_mute_info(ctx, member)
-    
-    # Format remaining time
-    if remaining_time is not None and remaining_time > 0:
-        time_remaining = format_time_remaining(int(remaining_time))
-    else:
-        time_remaining = "انتهى"
-    
-    embed = discord.Embed(
-        title="🔇 حالة الإسكات",
-        description=f"{member.mention} مكتوم",
-        color=0xff6b6b,
-        timestamp=datetime.datetime.now()
-    )
-    embed.add_field(name="السبب", value=reason, inline=True)
-    embed.add_field(name="بواسطة", value=muted_by.mention if muted_by else "البوت", inline=True)
-    embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
-    embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-    
-    # Send as ephemeral message - only visible to the user who used the command
-    try:
-        await ctx.send(embed=embed, ephemeral=True)
-    except Exception as e:
-        print(f"Error sending اسكاتي message: {e}")
-        await ctx.send(embed=embed)
-
-@bot.command(name='مساعدة')
-async def help_command(ctx):
-    """عرض قائمة الأوامر المتاحة"""
-    
-    log_command_usage(ctx, "مساعدة")
-    
-    # Check if user has admin permissions
-    is_admin = has_admin_permissions(ctx)
-    
-    embed = discord.Embed(
-        title="❓ قائمة الأوامر المتاحة",
-        description="الأوامر المتاحة لك",
-        color=0x00ff00
-    )
-    
-    # Commands for everyone
-    embed.add_field(
-        name="🔍 اسكاتي [@عضو اختياري]",
-        value="فحص حالة الإسكات للعضو (متاح للجميع)",
-        inline=False
-    )
-    
-    # Admin-only commands
-    if is_admin:
-        embed.add_field(
-            name="🔇 اسكات",
-            value="عرض خيارات الميوت المتاحة (للأدمن فقط)",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔇 اسكت @عضو السبب",
-            value="ميوت مباشر مع السبب (مثال: اسكت @فلان سب) - للأدمن فقط\n⚠️ يجب كتابة السبب بعد منشن العضو",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔇 ميوت @عضو [رقم السبب] [المدة اختياري]",
-            value="ميوت عضو مع تحديد السبب والمدة - للأدمن فقط",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔨 باند @عضو [السبب اختياري]",
-            value="حظر عضو من السيرفر - للأدمن فقط",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="👢 كيك @عضو [السبب اختياري]",
-            value="طرد عضو من السيرفر - للأدمن فقط",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🗑️ مسح [العدد]",
-            value="مسح عدد محدد من الرسائل - للأدمن فقط",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔊 تكلم [@عضو اختياري]",
-            value="فك الإسكات عن عضو - للأدمن فقط",
-            inline=False
-        )
-    
-    embed.add_field(
-        name="❓ مساعدة",
-        value="عرض هذه القائمة",
-        inline=False
-    )
-    
-    embed.set_footer(text="البوت مخصص لإدارة السيرفر")
-    
-    # Send as ephemeral message - only visible to the user who used the command
-    try:
-        await ctx.send(embed=embed, ephemeral=True)
-    except Exception as e:
-        print(f"Error sending مساعدة message: {e}")
-        # Fallback to regular message if ephemeral fails
-        await ctx.send(embed=embed)
 
 # Error handling
 @bot.event
 async def on_command_error(ctx, error):
-    # Ignore errors for commands that don't exist
     if isinstance(error, commands.CommandNotFound):
         return
-    
-    # Ignore if it's a known command error or already handled
     if hasattr(error, 'original') or hasattr(error, 'handled'):
         return
-    
-    # Ignore specific command errors that are handled in the command itself
     if isinstance(error, (commands.MissingRequiredArgument, commands.MemberNotFound, commands.BadArgument)):
         return
     
-    # Send error message only to the user who used the command
     error_message = "❌ حدث خطأ في تنفيذ الأمر"
-    
-    # Send error message as ephemeral
-    await ctx.send(error_message, ephemeral=True)
+    await send_error_message(ctx, error_message)
+
+# Bot events
+@bot.event
+async def on_ready():
+    print(f'✅ {bot.user} تم تسجيل الدخول بنجاح!')
+    print(f'🆔 Bot ID: {bot.user.id}')
+    print(f'📊 عدد السيرفرات: {len(bot.guilds)}')
 
 # Run the bot
 if __name__ == "__main__":
     token = os.getenv('DISCORD_TOKEN')
     if not token:
-        print("❌ يرجى إضافة DISCORD_TOKEN في متغيرات البيئة")
-        print("في Render: اذهب إلى Environment Variables وأضف DISCORD_TOKEN")
-    else:
-        print("🚀 بدء تشغيل البوت...")
-        try:
-            bot.run(token)
-        except Exception as e:
-            print(f"❌ خطأ في تشغيل البوت: {e}")
-            print("تأكد من صحة التوكن وصلاحيات البوت") 
+        print("❌ لم يتم العثور على DISCORD_TOKEN في متغيرات البيئة")
+        exit(1)
+    
+    bot.run(token) 
