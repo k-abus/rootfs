@@ -51,33 +51,57 @@ def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
     print(f"Command '{command_name}' used by {ctx.author} in {ctx.guild}")
 
-def validate_member_permissions(ctx, member):
+def validate_member_permissions(ctx_or_interaction, member):
     """Check if member can be targeted by moderation commands"""
+    # Handle both ctx and interaction objects
+    if hasattr(ctx_or_interaction, 'author'):
+        # It's a ctx object
+        user = ctx_or_interaction.author
+    else:
+        # It's an interaction object
+        user = ctx_or_interaction.user
+    
     if member.bot:
         return False, "لا يمكن التصرف مع البوتات"
-    if member == ctx.author:
+    if member == user:
         return False, "لا يمكنك التصرف مع نفسك"
     if member.guild_permissions.administrator:
         return False, "لا يمكن التصرف مع المشرفين"
     return True, None
 
-def has_admin_permissions(ctx):
+def has_admin_permissions(ctx_or_interaction):
     """Check if user has admin role or admin permissions"""
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    has_admin_role = admin_role and admin_role in ctx.author.roles
-    has_admin_permissions = (ctx.author.guild_permissions.administrator or 
-                           ctx.author.guild_permissions.manage_roles or 
-                           ctx.author.guild_permissions.ban_members or 
-                           ctx.author.guild_permissions.kick_members or 
-                           ctx.author.guild_permissions.manage_messages)
+    # Handle both ctx and interaction objects
+    if hasattr(ctx_or_interaction, 'author'):
+        # It's a ctx object
+        user = ctx_or_interaction.author
+        guild = ctx_or_interaction.guild
+    else:
+        # It's an interaction object
+        user = ctx_or_interaction.user
+        guild = ctx_or_interaction.guild
+    
+    admin_role = discord.utils.get(guild.roles, name="ادمن")
+    has_admin_role = admin_role and admin_role in user.roles
+    has_admin_permissions = (user.guild_permissions.administrator or 
+                           user.guild_permissions.manage_roles or 
+                           user.guild_permissions.ban_members or 
+                           user.guild_permissions.kick_members or 
+                           user.guild_permissions.manage_messages)
     return has_admin_role or has_admin_permissions
 
-async def create_muted_role(ctx):
+async def create_muted_role(ctx_or_interaction):
     """Create muted role if it doesn't exist"""
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    # Handle both ctx and interaction objects
+    if hasattr(ctx_or_interaction, 'guild'):
+        guild = ctx_or_interaction.guild
+    else:
+        guild = ctx_or_interaction.guild
+    
+    muted_role = discord.utils.get(guild.roles, name="Muted")
     if not muted_role:
-        muted_role = await ctx.guild.create_role(name="Muted", color=discord.Color.dark_gray())
-        for channel in ctx.guild.channels:
+        muted_role = await guild.create_role(name="Muted", color=discord.Color.dark_gray())
+        for channel in guild.channels:
             if isinstance(channel, discord.TextChannel):
                 await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
     return muted_role
@@ -152,7 +176,7 @@ class MuteOptionsView(discord.ui.View):
 
     @discord.ui.button(label="سب/شتائم", style=discord.ButtonStyle.danger, emoji="🤬", custom_id="swear_mute")
     async def swear_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(self.ctx):
+        if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
             return
         
@@ -160,7 +184,7 @@ class MuteOptionsView(discord.ui.View):
 
     @discord.ui.button(label="إساءة/استهزاء", style=discord.ButtonStyle.danger, emoji="😤", custom_id="abuse_mute")
     async def abuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(self.ctx):
+        if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
             return
         
@@ -168,7 +192,7 @@ class MuteOptionsView(discord.ui.View):
 
     @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.secondary, emoji="🔗", custom_id="links_mute")
     async def links_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(self.ctx):
+        if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
             return
         
@@ -176,7 +200,7 @@ class MuteOptionsView(discord.ui.View):
 
     @discord.ui.button(label="سبام", style=discord.ButtonStyle.secondary, emoji="📢", custom_id="spam_mute")
     async def spam_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(self.ctx):
+        if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
             return
         
@@ -184,7 +208,7 @@ class MuteOptionsView(discord.ui.View):
 
     @discord.ui.button(label="تجاهل التحذيرات", style=discord.ButtonStyle.secondary, emoji="⚠️", custom_id="ignore_mute")
     async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(self.ctx):
+        if not has_admin_permissions(interaction):
             await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
             return
         
@@ -194,16 +218,16 @@ class MuteOptionsView(discord.ui.View):
         """Execute mute with the selected reason"""
         try:
             # Validate member
-            can_target, error_msg = validate_member_permissions(self.ctx, self.member)
+            can_target, error_msg = validate_member_permissions(interaction, self.member)
             if not can_target:
                 await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
                 return
 
             # Create muted role
-            muted_role = await create_muted_role(self.ctx)
+            muted_role = await create_muted_role(interaction)
             
             # Apply mute
-            await self.member.add_roles(muted_role, reason=f"ميوت بواسطة {self.ctx.author} - السبب: {reason}")
+            await self.member.add_roles(muted_role, reason=f"ميوت بواسطة {interaction.user} - السبب: {reason}")
             
             # Create embed
             embed = discord.Embed(
@@ -213,7 +237,7 @@ class MuteOptionsView(discord.ui.View):
             )
             embed.add_field(name="السبب", value=reason, inline=True)
             embed.add_field(name="المدة", value=f"{duration_minutes} دقيقة", inline=True)
-            embed.add_field(name="بواسطة", value=self.ctx.author.mention, inline=True)
+            embed.add_field(name="بواسطة", value=interaction.user.mention, inline=True)
             embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration_minutes} دقيقة")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -224,7 +248,7 @@ class MuteOptionsView(discord.ui.View):
                 try:
                     if muted_role in self.member.roles:
                         await self.member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-                        await self.ctx.send(f"✅ تم إلغاء ميوت {self.member.mention} بعد انتهاء المدة")
+                        await interaction.channel.send(f"✅ تم إلغاء ميوت {self.member.mention} بعد انتهاء المدة")
                 except Exception as e:
                     print(f"Error in unmute task: {e}")
             
