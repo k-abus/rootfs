@@ -431,14 +431,14 @@ async def unmute_member(ctx, member: discord.Member = None):
     
     log_command_usage(ctx, "تكلم")
     
+    # Check if user has admin permissions
+    if not has_admin_permissions(ctx):
+        await send_error_message(ctx, "❌ هذا الأمر متاح للأدمن فقط!")
+        return
+    
     # If no member specified, unmute the command user
     if member is None:
         member = ctx.author
-    
-    # Check if user has admin permissions (only required for unmuting others)
-    if member != ctx.author and not has_admin_permissions(ctx):
-        await send_error_message(ctx, "❌ يمكنك فك إسكاتك فقط! للأدمن فك إسكات الآخرين")
-        return
     
     # Find muted role
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
@@ -544,12 +544,6 @@ async def help_command(ctx):
     
     # Commands for everyone
     embed.add_field(
-        name="🔊 تكلم [@عضو اختياري]",
-        value="فك الإسكات عن عضو (متاح للجميع لفك إسكاتهم، للأدمن لفك إسكات الآخرين)",
-        inline=False
-    )
-    
-    embed.add_field(
         name="🔍 اسكاتي [@عضو اختياري]",
         value="فحص حالة الإسكات للعضو (متاح للجميع)",
         inline=False
@@ -590,6 +584,12 @@ async def help_command(ctx):
         embed.add_field(
             name="🗑️ مسح [العدد]",
             value="مسح عدد محدد من الرسائل - للأدمن فقط",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔊 تكلم [@عضو اختياري]",
+            value="فك الإسكات عن عضو - للأدمن فقط",
             inline=False
         )
     
