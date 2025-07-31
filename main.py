@@ -200,8 +200,13 @@ async def show_mute_options(ctx):
     embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
-    # Send as ephemeral message
-    await send_hidden_message(ctx, embed=embed)
+    # Send as ephemeral message directly
+    try:
+        await ctx.send(embed=embed, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending اسكات message: {e}")
+        # Fallback to regular message if ephemeral fails
+        await ctx.send(embed=embed)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -647,6 +652,10 @@ async def help_command(ctx):
 async def on_command_error(ctx, error):
     # Ignore errors for commands that don't exist
     if isinstance(error, commands.CommandNotFound):
+        return
+    
+    # Ignore if it's a known command error
+    if hasattr(error, 'original'):
         return
     
     # Send error message only to the user who used the command
