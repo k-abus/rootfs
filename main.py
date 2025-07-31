@@ -204,7 +204,7 @@ async def show_mute_options(ctx):
     embed.set_footer(text="اكتب: اسكت @عضو السبب\nمثال: اسكت @فلان سب")
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
-    # Send as ephemeral message
+    # Send as ephemeral message - only visible to admin who used the command
     await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='اسكت')
@@ -643,7 +643,7 @@ async def help_command(ctx):
     
     embed.set_footer(text="البوت مخصص لإدارة السيرفر")
     
-    # Send as hidden message
+    # Send as hidden message - only visible to the user who used the command
     await send_hidden_message(ctx, embed=embed, duration=20)
 
 # Error handling
