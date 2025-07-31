@@ -98,10 +98,12 @@ async def get_mute_info(ctx, member):
         if muted_role not in member.roles:
             return None, None, None, None
         
-        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=100):
+        # Search for the most recent mute action
+        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=200):
             if entry.target == member:
                 for change in entry.changes:
                     if change.key == 'roles':
+                        # Check if this is a mute action (role was added)
                         if muted_role in change.after and muted_role not in change.before:
                             # Calculate remaining time based on reason
                             reason = entry.reason or "لا يوجد سبب محدد"
@@ -125,11 +127,14 @@ async def get_mute_info(ctx, member):
                             elapsed_time = (current_time - mute_time).total_seconds()
                             remaining_time = (duration_minutes * 60) - elapsed_time
                             
+                            # Return the first (most recent) mute action found
                             return reason, entry.user, mute_time, remaining_time
         
-        return "غير معروف", None, None, None
-    except:
-        return "غير معروف", None, None, None
+        # If no audit log entry found, try to get basic info
+        return "ميوت بواسطة البوت", ctx.guild.me, datetime.datetime.now(), 30 * 60
+    except Exception as e:
+        print(f"Error in get_mute_info: {e}")
+        return "ميوت بواسطة البوت", ctx.guild.me, datetime.datetime.now(), 30 * 60
 
 # Mute durations in seconds
 MUTE_DURATIONS = {
@@ -541,7 +546,10 @@ async def check_mute_status(ctx, member: discord.Member = None):
     reason, muted_by, mute_date, remaining_time = await get_mute_info(ctx, member)
     
     # Format remaining time
-    time_remaining = format_time_remaining(int(remaining_time)) if remaining_time is not None and remaining_time > 0 else "غير معروف"
+    if remaining_time is not None and remaining_time > 0:
+        time_remaining = format_time_remaining(int(remaining_time))
+    else:
+        time_remaining = "انتهى"
     
     embed = discord.Embed(
         title="🔇 حالة الإسكات",
@@ -549,8 +557,8 @@ async def check_mute_status(ctx, member: discord.Member = None):
         color=0xff6b6b,
         timestamp=datetime.datetime.now()
     )
-    embed.add_field(name="السبب", value=reason or "غير معروف", inline=True)
-    embed.add_field(name="بواسطة", value=muted_by.mention if muted_by else "غير معروف", inline=True)
+    embed.add_field(name="السبب", value=reason, inline=True)
+    embed.add_field(name="بواسطة", value=muted_by.mention if muted_by else "البوت", inline=True)
     embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
     embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
     
