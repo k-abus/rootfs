@@ -99,15 +99,23 @@ async def get_mute_info(ctx, member):
             return None, None, None, None
         
         # Search for the most recent mute action
-        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=200):
+        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=500):
             if entry.target == member:
                 for change in entry.changes:
                     if change.key == 'roles':
                         # Check if this is a mute action (role was added)
                         if muted_role in change.after and muted_role not in change.before:
-                            # Calculate remaining time based on reason
+                            # Extract reason from the audit log
                             reason = entry.reason or "لا يوجد سبب محدد"
-                            duration_minutes = 30  # default
+                            
+                            # Clean up the reason - remove the "ميوت بواسطة" part
+                            if "ميوت بواسطة" in reason:
+                                # Extract just the reason part
+                                reason_parts = reason.split(" - السبب: ")
+                                if len(reason_parts) > 1:
+                                    reason = reason_parts[1]
+                                else:
+                                    reason = reason.replace("ميوت بواسطة", "").strip()
                             
                             # Map reason keywords to durations
                             reason_mapping = {
@@ -116,6 +124,7 @@ async def get_mute_info(ctx, member):
                                 "تجاهل": 15, "تحذيرات": 15
                             }
                             
+                            duration_minutes = 30  # default
                             for keyword, dur in reason_mapping.items():
                                 if keyword in reason.lower():
                                     duration_minutes = dur
@@ -131,10 +140,10 @@ async def get_mute_info(ctx, member):
                             return reason, entry.user, mute_time, remaining_time
         
         # If no audit log entry found, try to get basic info
-        return "ميوت بواسطة البوت", ctx.guild.me, datetime.datetime.now(), 30 * 60
+        return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
     except Exception as e:
         print(f"Error in get_mute_info: {e}")
-        return "ميوت بواسطة البوت", ctx.guild.me, datetime.datetime.now(), 30 * 60
+        return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
 
 # Mute durations in seconds
 MUTE_DURATIONS = {
