@@ -14,11 +14,24 @@ intents.message_content = True  # Required for commands to work
 
 bot = commands.Bot(command_prefix='', intents=intents)
 
-async def send_error_message(ctx, message):
+async def send_error_message(ctx, message, duration: int = 5):
     """Send error message to user only in channel"""
-    # Send to channel but delete after 5 seconds
+    # Send to channel but delete after specified duration
     msg = await ctx.send(message)
-    await asyncio.sleep(5)
+    await asyncio.sleep(duration)
+    try:
+        await msg.delete()
+    except:
+        pass
+
+async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
+    """Send hidden message that only the command user can see"""
+    # Send message and delete after duration
+    if embed:
+        msg = await ctx.send(embed=embed)
+    else:
+        msg = await ctx.send(message)
+    await asyncio.sleep(duration)
     try:
         await msg.delete()
     except:
@@ -495,25 +508,14 @@ async def check_mute_status(ctx, member: discord.Member = None):
             timestamp=datetime.datetime.now()
         )
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await ctx.send(embed=embed)
+        await send_hidden_message(ctx, embed=embed, duration=10)
         return
     
     # Get mute information
     reason, muted_by, mute_date, remaining_time = await get_mute_info(ctx, member)
     
-    if reason is None:
-        embed = discord.Embed(
-            title="✅ حالة الإسكات",
-            description=f"{member.mention} ليس مكتوم",
-            color=0x00ff00,
-            timestamp=datetime.datetime.now()
-        )
-        embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await ctx.send(embed=embed)
-        return
-    
     # Format remaining time
-    time_remaining = format_time_remaining(int(remaining_time)) if remaining_time is not None else "غير معروف"
+    time_remaining = format_time_remaining(int(remaining_time)) if remaining_time is not None and remaining_time > 0 else "غير معروف"
     
     embed = discord.Embed(
         title="🔇 حالة الإسكات",
@@ -521,11 +523,13 @@ async def check_mute_status(ctx, member: discord.Member = None):
         color=0xff6b6b,
         timestamp=datetime.datetime.now()
     )
-    embed.add_field(name="السبب", value=reason, inline=True)
+    embed.add_field(name="السبب", value=reason or "غير معروف", inline=True)
     embed.add_field(name="بواسطة", value=muted_by.mention if muted_by else "غير معروف", inline=True)
     embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
     embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-    await ctx.send(embed=embed)
+    
+    # Send as hidden message
+    await send_hidden_message(ctx, embed=embed, duration=15)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
@@ -601,7 +605,8 @@ async def help_command(ctx):
     
     embed.set_footer(text="البوت مخصص لإدارة السيرفر")
     
-    await ctx.send(embed=embed)
+    # Send as hidden message
+    await send_hidden_message(ctx, embed=embed, duration=20)
 
 # Error handling
 @bot.event
