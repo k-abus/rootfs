@@ -14,8 +14,16 @@ intents.message_content = True  # Required for commands to work
 
 bot = commands.Bot(command_prefix='', intents=intents)
 
+# Global variable to track sent messages to prevent duplicates
+sent_messages = set()
+
 async def send_error_message(ctx, message, duration: int = 5):
     """Send error message as ephemeral"""
+    message_id = f"{ctx.message.id}_{message}"
+    if message_id in sent_messages:
+        return
+    
+    sent_messages.add(message_id)
     try:
         await ctx.send(message, ephemeral=True)
     except Exception as e:
@@ -25,6 +33,11 @@ async def send_error_message(ctx, message, duration: int = 5):
 
 async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
     """Send hidden message as ephemeral"""
+    message_id = f"{ctx.message.id}_{'hidden'}"
+    if message_id in sent_messages:
+        return
+    
+    sent_messages.add(message_id)
     try:
         if embed:
             await ctx.send(embed=embed, ephemeral=True)
@@ -105,7 +118,7 @@ async def get_mute_info(ctx, member):
             return None, None, None, None
         
         # Search for the most recent mute action
-        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=500):
+        async for entry in ctx.guild.audit_logs(action=discord.AuditLogAction.member_update, limit=1000):
             if entry.target == member:
                 for change in entry.changes:
                     if change.key == 'roles':
@@ -216,12 +229,7 @@ async def show_mute_options(ctx):
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
     # Send as ephemeral message - only visible to admin who used the command
-    try:
-        await ctx.send(embed=embed, ephemeral=True)
-    except Exception as e:
-        print(f"Error sending اسكات message: {e}")
-        # Fallback to regular message
-        await ctx.send(embed=embed)
+    await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -588,7 +596,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
             timestamp=datetime.datetime.now()
         )
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await send_hidden_message(ctx, embed=embed, duration=10)
+        await ctx.send(embed=embed, ephemeral=True)
         return
     
     # Get mute information
@@ -611,8 +619,8 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
     embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
     
-    # Send as hidden message
-    await send_hidden_message(ctx, embed=embed, duration=15)
+    # Send as ephemeral message
+    await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
@@ -688,8 +696,8 @@ async def help_command(ctx):
     
     embed.set_footer(text="البوت مخصص لإدارة السيرفر")
     
-    # Send as hidden message - only visible to the user who used the command
-    await send_hidden_message(ctx, embed=embed, duration=20)
+    # Send as ephemeral message
+    await ctx.send(embed=embed, ephemeral=True)
 
 # Error handling
 @bot.event
@@ -710,7 +718,7 @@ async def on_command_error(ctx, error):
     error_message = "❌ حدث خطأ في تنفيذ الأمر"
     
     # Send error message as ephemeral
-    await send_error_message(ctx, error_message)
+    await ctx.send(error_message, ephemeral=True)
 
 # Run the bot
 if __name__ == "__main__":
