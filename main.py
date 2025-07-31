@@ -229,7 +229,12 @@ async def show_mute_options(ctx):
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
     # Send as ephemeral message - only visible to admin who used the command
-    await ctx.send(embed=embed, ephemeral=True)
+    try:
+        await ctx.send(embed=embed, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending اسكات message: {e}")
+        # Fallback to regular message if ephemeral fails
+        await ctx.send(embed=embed)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -596,7 +601,11 @@ async def check_mute_status(ctx, member: discord.Member = None):
             timestamp=datetime.datetime.now()
         )
         embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
-        await ctx.send(embed=embed, ephemeral=True)
+        try:
+            await ctx.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            print(f"Error sending اسكاتي message: {e}")
+            await ctx.send(embed=embed)
         return
     
     # Get mute information
@@ -619,8 +628,12 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="الوقت المتبقي", value=time_remaining, inline=True)
     embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
     
-    # Send as ephemeral message
-    await ctx.send(embed=embed, ephemeral=True)
+    # Send as ephemeral message - only visible to the user who used the command
+    try:
+        await ctx.send(embed=embed, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending اسكاتي message: {e}")
+        await ctx.send(embed=embed)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
@@ -696,8 +709,13 @@ async def help_command(ctx):
     
     embed.set_footer(text="البوت مخصص لإدارة السيرفر")
     
-    # Send as ephemeral message
-    await ctx.send(embed=embed, ephemeral=True)
+    # Send as ephemeral message - only visible to the user who used the command
+    try:
+        await ctx.send(embed=embed, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending مساعدة message: {e}")
+        # Fallback to regular message if ephemeral fails
+        await ctx.send(embed=embed)
 
 # Error handling
 @bot.event
