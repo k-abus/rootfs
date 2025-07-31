@@ -16,16 +16,27 @@ bot = commands.Bot(command_prefix='', intents=intents)
 
 async def send_error_message(ctx, message, duration: int = 5):
     """Send error message as ephemeral"""
-    # Send as ephemeral message
-    await ctx.send(message, ephemeral=True)
+    try:
+        await ctx.send(message, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending ephemeral message: {e}")
+        # Fallback to regular message
+        await ctx.send(message)
 
 async def send_hidden_message(ctx, message=None, embed=None, duration: int = 10):
     """Send hidden message as ephemeral"""
-    # Send as ephemeral message
-    if embed:
-        await ctx.send(embed=embed, ephemeral=True)
-    else:
-        await ctx.send(message, ephemeral=True)
+    try:
+        if embed:
+            await ctx.send(embed=embed, ephemeral=True)
+        else:
+            await ctx.send(message, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending hidden message: {e}")
+        # Fallback to regular message
+        if embed:
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(message)
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
@@ -205,7 +216,12 @@ async def show_mute_options(ctx):
     embed.set_author(name=f"طلب بواسطة {ctx.author.display_name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else ctx.author.default_avatar.url)
     
     # Send as ephemeral message - only visible to admin who used the command
-    await ctx.send(embed=embed, ephemeral=True)
+    try:
+        await ctx.send(embed=embed, ephemeral=True)
+    except Exception as e:
+        print(f"Error sending اسكات message: {e}")
+        # Fallback to regular message
+        await ctx.send(embed=embed)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -657,15 +673,12 @@ async def on_command_error(ctx, error):
     if hasattr(error, 'original') or hasattr(error, 'handled'):
         return
     
+    # Ignore specific command errors that are handled in the command itself
+    if isinstance(error, (commands.MissingRequiredArgument, commands.MemberNotFound, commands.BadArgument)):
+        return
+    
     # Send error message only to the user who used the command
     error_message = "❌ حدث خطأ في تنفيذ الأمر"
-    
-    if isinstance(error, commands.MissingRequiredArgument):
-        error_message = "❌ يرجى إدخال جميع المعاملات المطلوبة!"
-    elif isinstance(error, commands.MemberNotFound):
-        error_message = "❌ لم يتم العثور على العضو المحدد!"
-    elif isinstance(error, commands.BadArgument):
-        error_message = "❌ معامل غير صحيح!"
     
     # Send error message as ephemeral
     await send_error_message(ctx, error_message)
