@@ -143,7 +143,7 @@ async def get_mute_info(ctx, member):
         print(f"Error in get_mute_info: {e}")
         return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
 
-# Button Views for interactive commands
+# Button Views for interactive commands (ONLY for اسكات and مساعدة)
 class MuteOptionsView(discord.ui.View):
     def __init__(self, member: discord.Member, ctx):
         super().__init__(timeout=60)
