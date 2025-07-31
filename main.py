@@ -218,7 +218,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration} دقيقة")
         
         msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
+        await asyncio.sleep(7)
         try:
             await msg.delete()
         except:
@@ -268,7 +268,7 @@ async def unmute_member(ctx, member: discord.Member):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
         msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
+        await asyncio.sleep(7)
         try:
             await msg.delete()
         except:
@@ -374,7 +374,7 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
         msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
+        await asyncio.sleep(7)
         try:
             await msg.delete()
         except:
@@ -410,7 +410,7 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
         msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
+        await asyncio.sleep(7)
         try:
             await msg.delete()
         except:
@@ -443,7 +443,7 @@ async def clear_messages(ctx, amount: int = 5):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
         msg = await ctx.send(embed=embed)
-        await asyncio.sleep(5)
+        await asyncio.sleep(7)
         try:
             await msg.delete()
         except:
