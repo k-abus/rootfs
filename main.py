@@ -51,57 +51,33 @@ def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
     print(f"Command '{command_name}' used by {ctx.author} in {ctx.guild}")
 
-def validate_member_permissions(ctx_or_interaction, member):
+def validate_member_permissions(ctx, member):
     """Check if member can be targeted by moderation commands"""
-    # Handle both ctx and interaction objects
-    if hasattr(ctx_or_interaction, 'author'):
-        # It's a ctx object
-        user = ctx_or_interaction.author
-    else:
-        # It's an interaction object
-        user = ctx_or_interaction.user
-    
     if member.bot:
         return False, "لا يمكن التصرف مع البوتات"
-    if member == user:
+    if member == ctx.author:
         return False, "لا يمكنك التصرف مع نفسك"
     if member.guild_permissions.administrator:
         return False, "لا يمكن التصرف مع المشرفين"
     return True, None
 
-def has_admin_permissions(ctx_or_interaction):
+def has_admin_permissions(ctx):
     """Check if user has admin role or admin permissions"""
-    # Handle both ctx and interaction objects
-    if hasattr(ctx_or_interaction, 'author'):
-        # It's a ctx object
-        user = ctx_or_interaction.author
-        guild = ctx_or_interaction.guild
-    else:
-        # It's an interaction object
-        user = ctx_or_interaction.user
-        guild = ctx_or_interaction.guild
-    
-    admin_role = discord.utils.get(guild.roles, name="ادمن")
-    has_admin_role = admin_role and admin_role in user.roles
-    has_admin_permissions = (user.guild_permissions.administrator or 
-                           user.guild_permissions.manage_roles or 
-                           user.guild_permissions.ban_members or 
-                           user.guild_permissions.kick_members or 
-                           user.guild_permissions.manage_messages)
+    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
+    has_admin_role = admin_role and admin_role in ctx.author.roles
+    has_admin_permissions = (ctx.author.guild_permissions.administrator or 
+                           ctx.author.guild_permissions.manage_roles or 
+                           ctx.author.guild_permissions.ban_members or 
+                           ctx.author.guild_permissions.kick_members or 
+                           ctx.author.guild_permissions.manage_messages)
     return has_admin_role or has_admin_permissions
 
-async def create_muted_role(ctx_or_interaction):
+async def create_muted_role(ctx):
     """Create muted role if it doesn't exist"""
-    # Handle both ctx and interaction objects
-    if hasattr(ctx_or_interaction, 'guild'):
-        guild = ctx_or_interaction.guild
-    else:
-        guild = ctx_or_interaction.guild
-    
-    muted_role = discord.utils.get(guild.roles, name="Muted")
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
     if not muted_role:
-        muted_role = await guild.create_role(name="Muted", color=discord.Color.dark_gray())
-        for channel in guild.channels:
+        muted_role = await ctx.guild.create_role(name="Muted", color=discord.Color.dark_gray())
+        for channel in ctx.guild.channels:
             if isinstance(channel, discord.TextChannel):
                 await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
     return muted_role
@@ -167,168 +143,33 @@ async def get_mute_info(ctx, member):
         print(f"Error in get_mute_info: {e}")
         return "لا يوجد سبب محدد", ctx.guild.me, datetime.datetime.now(), 30 * 60
 
-# Button Views for interactive commands (ONLY for اسكات and مساعدة)
-class MuteOptionsView(discord.ui.View):
-    def __init__(self, member: discord.Member, ctx):
-        super().__init__(timeout=60)
-        self.member = member
-        self.ctx = ctx
-
-    @discord.ui.button(label="سب/شتائم", style=discord.ButtonStyle.danger, emoji="🤬", custom_id="swear_mute")
-    async def swear_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
-            return
-        
-        await self.execute_mute(interaction, "سب/شتائم", 30)
-
-    @discord.ui.button(label="إساءة/استهزاء", style=discord.ButtonStyle.danger, emoji="😤", custom_id="abuse_mute")
-    async def abuse_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
-            return
-        
-        await self.execute_mute(interaction, "إساءة/استهزاء", 60)
-
-    @discord.ui.button(label="روابط/إعلانات", style=discord.ButtonStyle.secondary, emoji="🔗", custom_id="links_mute")
-    async def links_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
-            return
-        
-        await self.execute_mute(interaction, "روابط/إعلانات", 120)
-
-    @discord.ui.button(label="سبام", style=discord.ButtonStyle.secondary, emoji="📢", custom_id="spam_mute")
-    async def spam_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
-            return
-        
-        await self.execute_mute(interaction, "سبام", 45)
-
-    @discord.ui.button(label="تجاهل التحذيرات", style=discord.ButtonStyle.secondary, emoji="⚠️", custom_id="ignore_mute")
-    async def ignore_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ ليس لديك صلاحيات كافية", ephemeral=True)
-            return
-        
-        await self.execute_mute(interaction, "تجاهل التحذيرات", 15)
-
-    async def execute_mute(self, interaction: discord.Interaction, reason: str, duration_minutes: int):
-        """Execute mute with the selected reason"""
-        try:
-            # Validate member
-            can_target, error_msg = validate_member_permissions(interaction, self.member)
-            if not can_target:
-                await interaction.response.send_message(f"❌ {error_msg}", ephemeral=True)
-                return
-
-            # Create muted role
-            muted_role = await create_muted_role(interaction)
-            
-            # Apply mute
-            await self.member.add_roles(muted_role, reason=f"ميوت بواسطة {interaction.user} - السبب: {reason}")
-            
-            # Create embed
-            embed = discord.Embed(
-                title="✅ تم الإسكات بنجاح",
-                description=f"تم إسكات {self.member.mention}",
-                color=discord.Color.red()
-            )
-            embed.add_field(name="السبب", value=reason, inline=True)
-            embed.add_field(name="المدة", value=f"{duration_minutes} دقيقة", inline=True)
-            embed.add_field(name="بواسطة", value=interaction.user.mention, inline=True)
-            embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration_minutes} دقيقة")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            
-            # Schedule unmute
-            async def unmute_after_duration():
-                await asyncio.sleep(duration_minutes * 60)
-                try:
-                    if muted_role in self.member.roles:
-                        await self.member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-                        await interaction.channel.send(f"✅ تم إلغاء ميوت {self.member.mention} بعد انتهاء المدة")
-                except Exception as e:
-                    print(f"Error in unmute task: {e}")
-            
-            asyncio.create_task(unmute_after_duration())
-            
-        except Exception as e:
-            await interaction.response.send_message(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
-
-class HelpView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=120)
-
-    @discord.ui.button(label="الأوامر العامة", style=discord.ButtonStyle.primary, emoji="📋", custom_id="general_commands")
-    async def general_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
-            title="📋 الأوامر العامة",
-            description="الأوامر المتاحة لجميع الأعضاء",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="اسكاتي", value="عرض حالة الإسكات الخاصة بك", inline=False)
-        embed.add_field(name="مساعدة", value="عرض قائمة الأوامر المتاحة", inline=False)
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="أوامر الإدارة", style=discord.ButtonStyle.danger, emoji="🛡️", custom_id="admin_commands")
-    async def admin_commands(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not has_admin_permissions(interaction):
-            await interaction.response.send_message("❌ هذا القسم للمشرفين فقط", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="🛡️ أوامر الإدارة",
-            description="الأوامر المتاحة للمشرفين فقط",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="اسكات @عضو", value="عرض خيارات الإسكات", inline=False)
-        embed.add_field(name="اسكت @عضو سبب", value="إسكات مباشر", inline=False)
-        embed.add_field(name="تكلم @عضو", value="إلغاء الإسكات", inline=False)
-        embed.add_field(name="باند @عضو", value="حظر العضو", inline=False)
-        embed.add_field(name="كيك @عضو", value="طرد العضو", inline=False)
-        embed.add_field(name="مسح عدد", value="حذف الرسائل", inline=False)
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
 # Bot commands
 @bot.command(name='اسكات')
-async def show_mute_options(ctx, member: discord.Member):
-    """Show mute options with buttons (admin only)"""
+async def show_mute_info(ctx):
+    """Show mute information and options (admin only)"""
     log_command_usage(ctx, 'اسكات')
     
     if not has_admin_permissions(ctx):
         await send_error_message(ctx, "❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر")
         return
     
-    if not member:
-        await send_error_message(ctx, "❌ يرجى منشن العضو المراد إسكاته")
-        return
-    
-    # Validate member
-    can_target, error_msg = validate_member_permissions(ctx, member)
-    if not can_target:
-        await send_error_message(ctx, f"❌ {error_msg}")
-        return
-    
-    # Create embed
     embed = discord.Embed(
-        title="🔇 خيارات الإسكات",
-        description=f"اختر سبب الإسكات لـ {member.mention}",
-        color=discord.Color.orange()
+        title="🔇 معلومات الإسكات",
+        description="معلومات عن نظام الإسكات في السيرفر",
+        color=discord.Color.blue()
     )
+    
     embed.add_field(name="🤬 سب/شتائم", value="30 دقيقة", inline=True)
     embed.add_field(name="😤 إساءة/استهزاء", value="60 دقيقة", inline=True)
     embed.add_field(name="🔗 روابط/إعلانات", value="120 دقيقة", inline=True)
     embed.add_field(name="📢 سبام", value="45 دقيقة", inline=True)
     embed.add_field(name="⚠️ تجاهل التحذيرات", value="15 دقيقة", inline=True)
+    embed.add_field(name="", value="", inline=True)
     
-    # Create view with buttons
-    view = MuteOptionsView(member, ctx)
+    embed.add_field(name="📝 كيفية الاستخدام", value="اكتب: اسكت @عضو السبب", inline=False)
+    embed.add_field(name="💡 أمثلة", value="اسكت @عضو سب\nاسكت @عضو روابط\nاسكت @عضو سبام", inline=False)
     
-    await ctx.send(embed=embed, view=view, ephemeral=True)
+    await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='اسكت')
 async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -475,20 +316,36 @@ async def check_mute_status(ctx, member: discord.Member = None):
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
-    """Help command with buttons (everyone)"""
+    """Help command (everyone)"""
     log_command_usage(ctx, 'مساعدة')
     
     embed = discord.Embed(
-        title="🤖 بوت الإدارة",
-        description="مرحباً! أنا بوت إدارة متقدم مع ميزات تفاعلية",
+        title="🤖 بوت الإدارة - قائمة الأوامر",
+        description="مرحباً! أنا بوت إدارة متقدم مع ميزات متقدمة",
         color=discord.Color.blue()
     )
-    embed.add_field(name="💡 كيف تستخدم البوت؟", value="اضغط على الأزرار أدناه لرؤية الأوامر المتاحة", inline=False)
     
-    # Create view with buttons
-    view = HelpView()
+    # General commands
+    embed.add_field(name="📋 الأوامر العامة", value="الأوامر المتاحة لجميع الأعضاء", inline=False)
+    embed.add_field(name="اسكاتي", value="عرض حالة الإسكات الخاصة بك", inline=True)
+    embed.add_field(name="مساعدة", value="عرض قائمة الأوامر المتاحة", inline=True)
+    embed.add_field(name="", value="", inline=True)
     
-    await ctx.send(embed=embed, view=view, ephemeral=True)
+    # Admin commands
+    if has_admin_permissions(ctx):
+        embed.add_field(name="🛡️ أوامر الإدارة", value="الأوامر المتاحة للمشرفين فقط", inline=False)
+        embed.add_field(name="اسكات", value="عرض معلومات الإسكات", inline=True)
+        embed.add_field(name="اسكت @عضو سبب", value="إسكات مباشر", inline=True)
+        embed.add_field(name="تكلم @عضو", value="إلغاء الإسكات", inline=True)
+        embed.add_field(name="باند @عضو", value="حظر العضو", inline=True)
+        embed.add_field(name="كيك @عضو", value="طرد العضو", inline=True)
+        embed.add_field(name="مسح عدد", value="حذف الرسائل", inline=True)
+    else:
+        embed.add_field(name="🛡️ أوامر الإدارة", value="غير متاحة لك", inline=False)
+    
+    embed.add_field(name="💡 نصائح", value="• استخدم @عضو لمنشن العضو\n• اكتب السبب بعد الأمر\n• الرسائل تختفي تلقائياً", inline=False)
+    
+    await ctx.send(embed=embed, ephemeral=True)
 
 @bot.command(name='باند')
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
