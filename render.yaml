@@ -10,4 +10,6 @@ services:
         value: 8000
     healthCheckPath: /health
     autoDeploy: true
-    plan: free 
+    plan: free
+    # Add better restart policy
+    restartPolicy: always 
