@@ -11,7 +11,7 @@ load_dotenv()
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='', intents=intents)
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
