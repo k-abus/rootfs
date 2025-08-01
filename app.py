@@ -49,7 +49,8 @@ def keep_alive():
 
 def keep_alive_service():
     """Keep the service alive by pinging itself"""
-    service_url = os.getenv('SERVICE_URL', 'https://fsociety-discord-bot.onrender.com')
+    # Use the correct Render URL
+    service_url = os.getenv('SERVICE_URL', 'https://rootfs.onrender.com')
     
     logger.info(f"🚀 بدء Keep-Alive Service لـ: {service_url}")
     
