@@ -11,7 +11,7 @@ load_dotenv()
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
@@ -437,5 +437,14 @@ async def on_ready():
     print(f'✅ {bot.user} تم تسجيل الدخول بنجاح!')
     print(f'🆔 Bot ID: {bot.user.id}')
     print(f'📊 عدد السيرفرات: {len(bot.guilds)}')
+
+@bot.event
+async def on_message(message):
+    # Ignore messages from the bot itself
+    if message.author == bot.user:
+        return
+    
+    # Process commands
+    await bot.process_commands(message)
 
 # Note: bot.run() is handled in app.py to avoid conflicts 
