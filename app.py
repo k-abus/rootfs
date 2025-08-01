@@ -53,6 +53,9 @@ def keep_alive_service():
     
     logger.info(f"🚀 بدء Keep-Alive Service لـ: {service_url}")
     
+    # Wait for Flask server to start
+    time.sleep(10)
+    
     while True:
         try:
             # Try multiple endpoints to ensure service stays alive
