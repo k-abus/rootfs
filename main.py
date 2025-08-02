@@ -28,7 +28,7 @@ def validate_member_permissions(ctx, member):
     return True, None
 
 def has_admin_permissions(ctx):
-    """Check if user is owner or has owner role"""
+    """Check if user is owner or has admin permissions"""
     # Check if user is server owner
     if ctx.author == ctx.guild.owner:
         return True
@@ -38,6 +38,18 @@ def has_admin_permissions(ctx):
     if owner_role and owner_role in ctx.author.roles:
         return True
     
+    # Check if user has admin role (any role with admin permissions)
+    admin_roles = ["admin", "Admin", "ADMIN", "مشرف", "مدير", "أدمن"]
+    for role_name in admin_roles:
+        admin_role = discord.utils.get(ctx.guild.roles, name=role_name)
+        if admin_role and admin_role in ctx.author.roles:
+            return True
+    
+    # Check if user has any role with admin permissions
+    for role in ctx.author.roles:
+        if role.permissions.administrator or role.permissions.manage_guild:
+            return True
+    
     return False
 
 def is_owner(ctx):
@@ -46,13 +58,33 @@ def is_owner(ctx):
 
 async def create_muted_role(ctx):
     """Create muted role if it doesn't exist"""
-    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
-    if not muted_role:
-        muted_role = await ctx.guild.create_role(name="Muted", color=discord.Color.dark_gray())
-        for channel in ctx.guild.channels:
-            if isinstance(channel, discord.TextChannel):
-                await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
-    return muted_role
+    try:
+        muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+        if not muted_role:
+            # Check if bot has permission to create roles
+            if not ctx.guild.me.guild_permissions.manage_roles:
+                raise discord.Forbidden("البوت لا يملك صلاحية إدارة الرتب")
+            
+            muted_role = await ctx.guild.create_role(name="Muted", color=discord.Color.dark_gray())
+            
+            # Set permissions for all channels
+            for channel in ctx.guild.channels:
+                try:
+                    if isinstance(channel, discord.TextChannel):
+                        await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+                    elif isinstance(channel, discord.VoiceChannel):
+                        await channel.set_permissions(muted_role, speak=False, connect=False)
+                except discord.Forbidden:
+                    continue  # Skip channels where bot doesn't have permission
+                except Exception as e:
+                    print(f"Error setting permissions for {channel.name}: {e}")
+                    continue
+        
+        return muted_role
+    except discord.Forbidden as e:
+        raise discord.Forbidden("البوت لا يملك صلاحيات كافية لإدارة الرتب")
+    except Exception as e:
+        raise Exception(f"خطأ في إنشاء دور الميوت: {str(e)}")
 
 def format_time_remaining(seconds):
     """Format time remaining in Arabic"""
@@ -222,8 +254,25 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
             if matched_reason != "مخالفة عامة":
                 break
         
+        # Check if bot has permission to manage roles
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            await ctx.respond("❌ البوت لا يملك صلاحية إدارة الرتب", ephemeral=True)
+            return
+        
+        # Check if bot can manage the target member's roles
+        if member.top_role >= ctx.guild.me.top_role:
+            await ctx.respond("❌ لا يمكن إسكات عضو برتبة أعلى من رتبة البوت", ephemeral=True)
+            return
+        
         # Apply mute
-        await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author} - السبب: {reason}")
+        try:
+            await member.add_roles(muted_role, reason=f"ميوت بواسطة {ctx.author} - السبب: {reason}")
+        except discord.Forbidden:
+            await ctx.respond("❌ البوت لا يملك صلاحيات كافية لإضافة الرتب", ephemeral=True)
+            return
+        except Exception as e:
+            await ctx.respond(f"❌ حدث خطأ أثناء الإسكات: {str(e)}", ephemeral=True)
+            return
         
         # Create embed
         embed = discord.Embed(
@@ -263,6 +312,11 @@ async def unmute_member(ctx, member: discord.Member):
         return
     
     try:
+        # Check if bot has permission to manage roles
+        if not ctx.guild.me.guild_permissions.manage_roles:
+            await ctx.respond("❌ البوت لا يملك صلاحية إدارة الرتب", ephemeral=True)
+            return
+        
         muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
         if not muted_role:
             await ctx.respond("❌ لا يوجد دور 'Muted' في السيرفر", ephemeral=True)
@@ -272,7 +326,19 @@ async def unmute_member(ctx, member: discord.Member):
             await ctx.respond(f"❌ {member.mention} غير مكتوم أصلاً", ephemeral=True)
             return
         
-        await member.remove_roles(muted_role, reason=f"إلغاء ميوت بواسطة {ctx.author}")
+        # Check if bot can manage the target member's roles
+        if member.top_role >= ctx.guild.me.top_role:
+            await ctx.respond("❌ لا يمكن إلغاء إسكات عضو برتبة أعلى من رتبة البوت", ephemeral=True)
+            return
+        
+        try:
+            await member.remove_roles(muted_role, reason=f"إلغاء ميوت بواسطة {ctx.author}")
+        except discord.Forbidden:
+            await ctx.respond("❌ البوت لا يملك صلاحيات كافية لإزالة الرتب", ephemeral=True)
+            return
+        except Exception as e:
+            await ctx.respond(f"❌ حدث خطأ أثناء إلغاء الإسكات: {str(e)}", ephemeral=True)
+            return
         
         embed = discord.Embed(
             title="✅ تم إلغاء الإسكات",
@@ -822,15 +888,42 @@ async def handle_mute_command(message):
             mute_duration = 30  # Default 30 minutes
             mute_description = "⏱️ مدة الإسكات: 30 دقيقة\n🔹 سبب غير محدد."
         
-        # Create muted role if it doesn't exist
-        muted_role = discord.utils.get(message.guild.roles, name="Muted")
-        if not muted_role:
-            muted_role = await message.guild.create_role(name="Muted", color=discord.Color.dark_gray())
-            for channel in message.guild.channels:
-                if isinstance(channel, discord.TextChannel):
-                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+        # Check if bot has permission to manage roles
+        if not message.guild.me.guild_permissions.manage_roles:
+            await message.channel.send("❌ البوت لا يملك صلاحية إدارة الرتب")
+            return
         
-        await member.add_roles(muted_role, reason=f"ميوت بواسطة {message.author} - السبب: {reason}")
+        # Check if bot can manage the target member's roles
+        if member.top_role >= message.guild.me.top_role:
+            await message.channel.send("❌ لا يمكن إسكات عضو برتبة أعلى من رتبة البوت")
+            return
+        
+        # Create muted role if it doesn't exist
+        try:
+            muted_role = discord.utils.get(message.guild.roles, name="Muted")
+            if not muted_role:
+                muted_role = await message.guild.create_role(name="Muted", color=discord.Color.dark_gray())
+                for channel in message.guild.channels:
+                    try:
+                        if isinstance(channel, discord.TextChannel):
+                            await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+                    except discord.Forbidden:
+                        continue  # Skip channels where bot doesn't have permission
+        except discord.Forbidden:
+            await message.channel.send("❌ البوت لا يملك صلاحيات كافية لإنشاء دور الميوت")
+            return
+        except Exception as e:
+            await message.channel.send(f"❌ خطأ في إنشاء دور الميوت: {str(e)}")
+            return
+        
+        try:
+            await member.add_roles(muted_role, reason=f"ميوت بواسطة {message.author} - السبب: {reason}")
+        except discord.Forbidden:
+            await message.channel.send("❌ البوت لا يملك صلاحيات كافية لإضافة الرتب")
+            return
+        except Exception as e:
+            await message.channel.send(f"❌ حدث خطأ أثناء الإسكات: {str(e)}")
+            return
         
         # Create embed with duration information
         embed = discord.Embed(
