@@ -49,8 +49,8 @@ def keep_alive():
 
 def keep_alive_service():
     """Keep the service alive by pinging itself"""
-    # Use the correct Render URL
-    service_url = os.getenv('SERVICE_URL', 'https://rootfs.onrender.com')
+    # Get the service URL from environment or use localhost for development
+    service_url = os.getenv('RENDER_EXTERNAL_URL') or os.getenv('SERVICE_URL') or 'http://localhost:8080'
     
     logger.info(f"🚀 بدء Keep-Alive Service لـ: {service_url}")
     
@@ -78,9 +78,9 @@ def keep_alive_service():
         except Exception as e:
             logger.error(f"❌ General keep-alive error: {e}")
         
-        # Wait 15 seconds before next ping (to stay well under 30s limit)
-        logger.info("⏳ انتظار 15 ثانية للـ ping التالي...")
-        time.sleep(15)
+        # Wait 25 seconds before next ping (to stay well under 30s limit)
+        logger.info("⏳ انتظار 25 ثانية للـ ping التالي...")
+        time.sleep(25)
 
 def run_bot():
     """Run the Discord bot in a separate thread with error handling"""
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     time.sleep(5)
     
     # Start Flask app for Render
-    port = int(os.environ.get('PORT', 8000))
+    port = int(os.environ.get('PORT', 8080))
     logger.info(f"🌐 بدء خادم Flask على port {port}")
     
     try:

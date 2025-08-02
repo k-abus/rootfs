@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Keep Alive Script for Render
-Prevents the bot from sleeping due to inactivity
+Keep Alive Service for FSociety Discord Bot
 """
 
 import os
 import time
 import requests
 import logging
+from threading import Thread
 
 # Configure logging
 logging.basicConfig(
@@ -17,17 +17,19 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def keep_alive():
-    """Keep the service alive by pinging it regularly"""
+    """Keep the service alive by pinging itself"""
+    # Get the service URL from environment
+    service_url = os.getenv('RENDER_EXTERNAL_URL') or os.getenv('SERVICE_URL') or 'https://fsociety-discord-bot.onrender.com'
     
-    # Get the service URL from environment or use default
-    service_url = os.getenv('SERVICE_URL', 'https://fsociety-discord-bot.onrender.com')
+    logger.info(f"🚀 بدء Keep-Alive Service لـ: {service_url}")
     
-    logger.info(f"🚀 بدء Keep-Alive لـ: {service_url}")
+    # Wait for Flask server to start
+    time.sleep(10)
     
     while True:
         try:
             # Try multiple endpoints to ensure service stays alive
-            endpoints = ['/', '/health', '/ping']
+            endpoints = ['/', '/health', '/ping', '/keep-alive']
             
             for endpoint in endpoints:
                 try:
@@ -45,9 +47,15 @@ def keep_alive():
         except Exception as e:
             logger.error(f"❌ General keep-alive error: {e}")
         
-        # Wait 20 seconds before next ping (to stay well under 30s limit)
-        logger.info("⏳ انتظار 20 ثانية للـ ping التالي...")
-        time.sleep(20)
+        # Wait 15 seconds before next ping (to stay well under 30s limit)
+        logger.info("⏳ انتظار 15 ثانية للـ ping التالي...")
+        time.sleep(15)
+
+def run_keep_alive():
+    """Run keep alive in a separate thread"""
+    keep_alive_thread = Thread(target=keep_alive, daemon=True)
+    keep_alive_thread.start()
+    return keep_alive_thread
 
 if __name__ == "__main__":
     keep_alive() 

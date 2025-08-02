@@ -1,0 +1,5 @@
+FSociety Discord Bot v1.0
+
+- إصلاح command prefix للأوامر العربية
+- تحسين error handling
+- إضافة أمر حالة البوت 

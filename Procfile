@@ -1,1 +1,1 @@
-worker: ./start.sh 
+web: python app.py 

@@ -1,15 +1,12 @@
 services:
   - type: web
     name: fsociety-discord-bot
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
     envVars:
       - key: DISCORD_TOKEN
         sync: false
-      - key: PORT
-        value: 8000
-    healthCheckPath: /health
-    autoDeploy: true
-    plan: free
-    # Add better restart policy
-    restartPolicy: always 
+      - key: RENDER_EXTERNAL_URL
+        value: https://fsociety-discord-bot.onrender.com 

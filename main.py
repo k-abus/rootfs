@@ -28,15 +28,21 @@ def validate_member_permissions(ctx, member):
     return True, None
 
 def has_admin_permissions(ctx):
-    """Check if user has admin role or admin permissions"""
-    admin_role = discord.utils.get(ctx.guild.roles, name="ادمن")
-    has_admin_role = admin_role and admin_role in ctx.author.roles
-    has_admin_permissions = (ctx.author.guild_permissions.administrator or 
-                           ctx.author.guild_permissions.manage_roles or 
-                           ctx.author.guild_permissions.ban_members or 
-                           ctx.author.guild_permissions.kick_members or 
-                           ctx.author.guild_permissions.manage_messages)
-    return has_admin_role or has_admin_permissions
+    """Check if user is owner or has owner role"""
+    # Check if user is server owner
+    if ctx.author == ctx.guild.owner:
+        return True
+    
+    # Check if user has owner role
+    owner_role = discord.utils.get(ctx.guild.roles, name="owner")
+    if owner_role and owner_role in ctx.author.roles:
+        return True
+    
+    return False
+
+def is_owner(ctx):
+    """Check if user is server owner"""
+    return ctx.author == ctx.guild.owner
 
 async def create_muted_role(ctx):
     """Create muted role if it doesn't exist"""
@@ -112,28 +118,53 @@ async def get_mute_info(ctx, member):
 # Bot commands
 @bot.command(name='اسكات')
 async def show_mute_info(ctx):
-    """Show mute information and options (admin only)"""
+    """Show list of muted members (admin only)"""
     log_command_usage(ctx, 'اسكات')
     
     if not has_admin_permissions(ctx):
         await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
         return
     
+    # Get muted role
+    muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
+    
+    if not muted_role:
+        embed = discord.Embed(
+            title="🔇 قائمة الأعضاء المسكات",
+            description="لا يوجد أعضاء مسكات حالياً",
+            color=discord.Color.green()
+        )
+        await ctx.respond(embed=embed, ephemeral=True)
+        return
+    
+    # Get all muted members
+    muted_members = [member for member in ctx.guild.members if muted_role in member.roles]
+    
+    if not muted_members:
+        embed = discord.Embed(
+            title="🔇 قائمة الأعضاء المسكات",
+            description="لا يوجد أعضاء مسكات حالياً",
+            color=discord.Color.green()
+        )
+        await ctx.respond(embed=embed, ephemeral=True)
+        return
+    
+    # Create embed with muted members list
     embed = discord.Embed(
-        title="🔇 معلومات الإسكات",
-        description="معلومات عن نظام الإسكات في السيرفر",
-        color=discord.Color.blue()
+        title="🔇 قائمة الأعضاء المسكات",
+        description=f"عدد الأعضاء المسكات: {len(muted_members)}",
+        color=discord.Color.red()
     )
     
-    embed.add_field(name="🤬 سب/شتائم", value="30 دقيقة", inline=True)
-    embed.add_field(name="😤 إساءة/استهزاء", value="60 دقيقة", inline=True)
-    embed.add_field(name="🔗 روابط/إعلانات", value="120 دقيقة", inline=True)
-    embed.add_field(name="📢 سبام", value="45 دقيقة", inline=True)
-    embed.add_field(name="⚠️ تجاهل التحذيرات", value="15 دقيقة", inline=True)
-    embed.add_field(name="", value="", inline=True)
+    # Add each muted member to the embed
+    for i, member in enumerate(muted_members, 1):
+        embed.add_field(
+            name=f"{i}. {member.display_name}",
+            value=f"ID: {member.id}\nانضم: {member.joined_at.strftime('%Y-%m-%d') if member.joined_at else 'غير معروف'}",
+            inline=True
+        )
     
-    embed.add_field(name="📝 كيفية الاستخدام", value="اكتب: اسكت @عضو السبب", inline=False)
-    embed.add_field(name="💡 أمثلة", value="اسكت @عضو سب\nاسكت @عضو روابط\nاسكت @عضو سبام", inline=False)
+    embed.set_footer(text="استخدم !تكلم @عضو لإلغاء الإسكات")
     
     await ctx.respond(embed=embed, ephemeral=True)
 
@@ -183,12 +214,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration} دقيقة")
         
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(7)
-        try:
-            await msg.delete()
-        except:
-            pass
+        await ctx.respond(embed=embed, ephemeral=True)
         
         # Schedule unmute
         async def unmute_after_duration():
@@ -233,28 +259,22 @@ async def unmute_member(ctx, member: discord.Member):
         )
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(7)
-        try:
-            await msg.delete()
-        except:
-            pass
+        await ctx.respond(embed=embed, ephemeral=True)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
 
 @bot.command(name='اسكاتي')
 async def check_mute_status(ctx, member: discord.Member = None):
-    """Check mute status (everyone)"""
+    """Check mute status (owner only)"""
     log_command_usage(ctx, 'اسكاتي')
+    
+    if not has_admin_permissions(ctx):
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        return
     
     if not member:
         member = ctx.author
-    
-    # Check if user is checking someone else's status
-    if member != ctx.author and not has_admin_permissions(ctx):
-        await ctx.respond("❌ لا يمكنك التحقق من حالة إسكات الآخرين", ephemeral=True)
-        return
     
     muted_role = discord.utils.get(ctx.guild.roles, name="Muted")
     if not muted_role or muted_role not in member.roles:
@@ -263,7 +283,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
             description=f"{member.mention} غير مكتوم",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed)
+        await ctx.respond(embed=embed, ephemeral=True)
         return
     
     # Get mute info
@@ -278,38 +298,77 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="بواسطة", value=muter.mention if muter else "غير معروف", inline=True)
     embed.add_field(name="الوقت المتبقي", value=format_time_remaining(remaining_time), inline=True)
     
-    await ctx.send(embed=embed)
+    await ctx.respond(embed=embed, ephemeral=True)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
-    """Help command (everyone)"""
+    """Show help information (owner only)"""
     log_command_usage(ctx, 'مساعدة')
     
+    if not is_owner(ctx):
+        await ctx.respond("❌ هذا الأمر متاح لأونر السيرفر فقط", ephemeral=True)
+        return
+    
     embed = discord.Embed(
-        title="🤖 بوت الإدارة - قائمة الأوامر",
-        description="مرحباً! أنا بوت إدارة متقدم مع ميزات متقدمة",
+        title="🤖 أوامر بوت FSociety",
+        description="قائمة بجميع الأوامر المتاحة",
         color=discord.Color.blue()
     )
     
-    # General commands
-    embed.add_field(name="📋 الأوامر العامة", value="الأوامر المتاحة لجميع الأعضاء", inline=False)
-    embed.add_field(name="اسكاتي", value="عرض حالة الإسكات الخاصة بك", inline=True)
-    embed.add_field(name="مساعدة", value="عرض قائمة الأوامر المتاحة", inline=True)
-    embed.add_field(name="", value="", inline=True)
+    embed.add_field(
+        name="🎭 أوامر الإدارة",
+        value="""
+`اسكت @عضو السبب` - إسكات العضو
+`تكلم @عضو` - إلغاء إسكات العضو
+`اسكات` - عرض قائمة الأعضاء المسكات
+`باند @عضو السبب` - حظر العضو
+`كيك @عضو السبب` - طرد العضو
+`مسح عدد` - حذف رسائل محددة
+`مسح الكل` - حذف جميع الرسائل
+`مساعدة` - عرض هذه القائمة
+`حالة` - فحص حالة البوت
+        """,
+        inline=False
+    )
     
-    # Admin commands
-    if has_admin_permissions(ctx):
-        embed.add_field(name="🛡️ أوامر الإدارة", value="الأوامر المتاحة للمشرفين فقط", inline=False)
-        embed.add_field(name="اسكات", value="عرض معلومات الإسكات", inline=True)
-        embed.add_field(name="اسكت @عضو سبب", value="إسكات مباشر", inline=True)
-        embed.add_field(name="تكلم @عضو", value="إلغاء الإسكات", inline=True)
-        embed.add_field(name="باند @عضو", value="حظر العضو", inline=True)
-        embed.add_field(name="كيك @عضو", value="طرد العضو", inline=True)
-        embed.add_field(name="مسح عدد", value="حذف الرسائل", inline=True)
-    else:
-        embed.add_field(name="🛡️ أوامر الإدارة", value="غير متاحة لك", inline=False)
+    embed.add_field(
+        name="👑 أوامر الأونر",
+        value="""
+`اضافة @عضو` - إضافة رتبة الأونر
+`حذف @عضو` - إزالة رتبة الأونر
+        """,
+        inline=False
+    )
     
-    embed.add_field(name="💡 نصائح", value="• استخدم @عضو لمنشن العضو\n• اكتب السبب بعد الأمر\n• الرسائل تختفي تلقائياً", inline=False)
+    embed.add_field(
+        name="📝 ملاحظات",
+        value="""
+• جميع الأوامر تحتاج صلاحيات الأونر
+• اكتب الأمر مباشرة بدون بادئة
+• الأوامر تعمل باللغة العربية فقط
+        """,
+        inline=False
+    )
+    
+    embed.set_footer(text="FSociety Bot v1.0")
+    
+    # إرسال الرسالة كخاصة للأونر فقط
+    await ctx.respond(embed=embed, ephemeral=True)
+
+@bot.command(name='حالة')
+async def bot_status(ctx):
+    """Check bot status"""
+    log_command_usage(ctx, 'حالة')
+    
+    embed = discord.Embed(
+        title="🤖 حالة البوت",
+        color=discord.Color.green()
+    )
+    
+    embed.add_field(name="الحالة", value="🟢 متصل", inline=True)
+    embed.add_field(name="الاستجابة", value=f"{round(bot.latency * 1000)}ms", inline=True)
+    embed.add_field(name="عدد السيرفرات", value=len(bot.guilds), inline=True)
+    embed.add_field(name="وقت التشغيل", value="متصل", inline=True)
     
     await ctx.respond(embed=embed, ephemeral=True)
 
@@ -339,12 +398,7 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(7)
-        try:
-            await msg.delete()
-        except:
-            pass
+        await ctx.respond(embed=embed, ephemeral=True)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -375,12 +429,7 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(7)
-        try:
-            await msg.delete()
-        except:
-            pass
+        await ctx.respond(embed=embed, ephemeral=True)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -407,13 +456,112 @@ async def clear_messages(ctx, amount: int = 5):
             color=discord.Color.green()
         )
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.add_field(name="العدد المطلوب", value=amount, inline=True)
         
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(7)
-        try:
-            await msg.delete()
-        except:
-            pass
+        await ctx.respond(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+
+@bot.command(name='مسح الكل')
+async def clear_all_messages(ctx):
+    """Clear all messages in channel (admin only)"""
+    log_command_usage(ctx, 'مسح الكل')
+    
+    if not has_admin_permissions(ctx):
+        await ctx.respond("❌ ليس لديك صلاحيات كافية لاستخدام هذا الأمر", ephemeral=True)
+        return
+    
+    try:
+        # Get channel history to count messages
+        messages = []
+        async for message in ctx.channel.history(limit=None):
+            messages.append(message)
+        
+        # Delete all messages except pinned ones
+        deleted = await ctx.channel.purge(limit=None, check=lambda m: not m.pinned)
+        
+        embed = discord.Embed(
+            title="🗑️ تم حذف جميع الرسائل",
+            description=f"تم حذف {len(deleted)} رسالة",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.add_field(name="الرسائل المثبتة", value="لم يتم حذفها", inline=True)
+        
+        await ctx.respond(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+
+@bot.command(name='اضافة')
+async def add_role(ctx, member: discord.Member):
+    """Add owner role to member (owner only)"""
+    log_command_usage(ctx, 'اضافة')
+    
+    if not is_owner(ctx):
+        await ctx.respond("❌ هذا الأمر متاح لأونر السيرفر فقط", ephemeral=True)
+        return
+    
+    try:
+        # Get or create owner role
+        owner_role = discord.utils.get(ctx.guild.roles, name="owner")
+        if not owner_role:
+            owner_role = await ctx.guild.create_role(
+                name="owner",
+                color=discord.Color.gold(),
+                reason="إنشاء رتبة الأونر بواسطة البوت"
+            )
+        
+        # Add role to member
+        await member.add_roles(owner_role, reason=f"إضافة رتبة الأونر بواسطة {ctx.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إضافة الرتبة بنجاح",
+            description=f"تم إضافة رتبة الأونر لـ {member.mention}",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
+        
+        await ctx.respond(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
+
+@bot.command(name='حذف')
+async def remove_role(ctx, member: discord.Member):
+    """Remove owner role from member (owner only)"""
+    log_command_usage(ctx, 'حذف')
+    
+    if not is_owner(ctx):
+        await ctx.respond("❌ هذا الأمر متاح لأونر السيرفر فقط", ephemeral=True)
+        return
+    
+    try:
+        # Get owner role
+        owner_role = discord.utils.get(ctx.guild.roles, name="owner")
+        if not owner_role:
+            await ctx.respond("❌ رتبة الأونر غير موجودة", ephemeral=True)
+            return
+        
+        # Check if member has the role
+        if owner_role not in member.roles:
+            await ctx.respond("❌ هذا العضو لا يملك رتبة الأونر", ephemeral=True)
+            return
+        
+        # Remove role from member
+        await member.remove_roles(owner_role, reason=f"إزالة رتبة الأونر بواسطة {ctx.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إزالة الرتبة بنجاح",
+            description=f"تم إزالة رتبة الأونر من {member.mention}",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
+        
+        await ctx.respond(embed=embed, ephemeral=True)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -428,8 +576,17 @@ async def on_command_error(ctx, error):
     if isinstance(error, (commands.MissingRequiredArgument, commands.MemberNotFound, commands.BadArgument)):
         return
     
+    # Log the error for debugging
+    print(f"❌ خطأ في الأمر '{ctx.command}' بواسطة {ctx.author}: {error}")
+    
     error_message = "❌ حدث خطأ في تنفيذ الأمر"
-    await ctx.respond(error_message, ephemeral=True)
+    try:
+        await ctx.respond(error_message, ephemeral=True)
+    except:
+        try:
+            await ctx.send(error_message)
+        except:
+            pass
 
 # Bot events
 @bot.event
@@ -444,7 +601,607 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
-    # Process commands
+    # Debug: Log all messages to see what's happening
+    print(f"📝 رسالة من {message.author}: {message.content}")
+    
+    # Check if message starts with any command (without prefix)
+    content = message.content.strip()
+    
+    # Handle commands directly
+    if content == 'مساعدة':
+        await help_command_direct(message)
+    elif content == 'حالة':
+        await status_command_direct(message)
+    elif content.startswith('اسكت'):
+        await handle_mute_command(message)
+    elif content.startswith('تكلم'):
+        await handle_unmute_command(message)
+    elif content == 'اسكات':
+        await handle_mute_list_command(message)
+    elif content.startswith('باند'):
+        await handle_ban_command(message)
+    elif content.startswith('كيك'):
+        await handle_kick_command(message)
+    elif content.startswith('مسح'):
+        await handle_clear_command(message)
+    elif content.startswith('اضافة رتبة'):
+        await handle_add_custom_role_command(message)
+    elif content.startswith('حذف رتبة'):
+        await handle_remove_custom_role_command(message)
+    elif content.startswith('اضافة لي'):
+        await handle_add_role_to_self_command(message)
+    elif content.startswith('إنشاء رتبة'):
+        await handle_create_admin_role_command(message)
+    elif content.startswith('اضافة'):
+        await handle_add_role_command(message)
+    elif content.startswith('حذف'):
+        await handle_remove_role_command(message)
+    
+    # Process commands normally as fallback
     await bot.process_commands(message)
+
+# Direct command handlers
+async def help_command_direct(message):
+    """Show help information directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    embed = discord.Embed(
+        title="🤖 أوامر بوت FSociety",
+        description="قائمة بجميع الأوامر المتاحة",
+        color=discord.Color.blue()
+    )
+    
+    embed.add_field(
+        name="🎭 أوامر الإدارة",
+        value="""
+`اسكت @عضو السبب` - إسكات العضو
+`تكلم @عضو` - إلغاء إسكات العضو
+`اسكات` - عرض قائمة الأعضاء المسكات
+`باند @عضو السبب` - حظر العضو
+`كيك @عضو السبب` - طرد العضو
+`مسح عدد` - حذف رسائل محددة
+`مساعدة` - عرض هذه القائمة
+`حالة` - فحص حالة البوت
+        """,
+        inline=False
+    )
+    
+    embed.add_field(
+        name="👑 أوامر الأونر",
+        value="""
+`اضافة @عضو` - إضافة رتبة الأونر
+`حذف @عضو` - إزالة رتبة الأونر
+`اضافة رتبة @عضو @الرتبة` - إضافة رتبة مخصصة
+`حذف رتبة @عضو @الرتبة` - إزالة رتبة مخصصة
+`اضافة لي @الرتبة` - إضافة رتبة لنفسك
+`إنشاء رتبة اسم_الرتبة` - إنشاء رتبة إدارية جديدة
+        """,
+        inline=False
+    )
+    
+    embed.set_footer(text="FSociety Bot v1.0")
+    await message.channel.send(embed=embed)
+
+async def status_command_direct(message):
+    """Check bot status directly"""
+    embed = discord.Embed(
+        title="🤖 حالة البوت",
+        color=discord.Color.green()
+    )
+    
+    embed.add_field(name="الحالة", value="🟢 متصل", inline=True)
+    embed.add_field(name="الاستجابة", value=f"{round(bot.latency * 1000)}ms", inline=True)
+    embed.add_field(name="عدد السيرفرات", value=len(bot.guilds), inline=True)
+    
+    await message.channel.send(embed=embed)
+
+def is_owner_direct(message):
+    """Check if user is server owner or has admin role"""
+    # Check if user is server owner
+    if message.author == message.guild.owner:
+        return True
+    
+    # Check if user has owner role
+    owner_role = discord.utils.get(message.guild.roles, name="owner")
+    if owner_role and owner_role in message.author.roles:
+        return True
+    
+    # Check if user has admin role (any role with admin permissions)
+    admin_roles = ["admin", "Admin", "ADMIN", "مشرف", "مدير", "أدمن"]
+    for role_name in admin_roles:
+        admin_role = discord.utils.get(message.guild.roles, name=role_name)
+        if admin_role and admin_role in message.author.roles:
+            return True
+    
+    # Check if user has any role with admin permissions
+    for role in message.author.roles:
+        if role.permissions.administrator or role.permissions.manage_guild:
+            return True
+    
+    return False
+
+async def handle_mute_command(message):
+    """Handle mute command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `اسكت @عضو السبب`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        parts = message.content.split()
+        reason = " ".join(parts[2:]) if len(parts) > 2 else "لا يوجد سبب محدد"
+        
+        # Create muted role if it doesn't exist
+        muted_role = discord.utils.get(message.guild.roles, name="Muted")
+        if not muted_role:
+            muted_role = await message.guild.create_role(name="Muted", color=discord.Color.dark_gray())
+            for channel in message.guild.channels:
+                if isinstance(channel, discord.TextChannel):
+                    await channel.set_permissions(muted_role, send_messages=False, add_reactions=False)
+        
+        await member.add_roles(muted_role, reason=f"ميوت بواسطة {message.author} - السبب: {reason}")
+        
+        embed = discord.Embed(
+            title="🔇 تم الإسكات بنجاح",
+            description=f"تم إسكات {member.mention}",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="السبب", value=reason, inline=True)
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_unmute_command(message):
+    """Handle unmute command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `تكلم @عضو`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        muted_role = discord.utils.get(message.guild.roles, name="Muted")
+        
+        if not muted_role or muted_role not in member.roles:
+            await message.channel.send("❌ هذا العضو غير مسكات")
+            return
+        
+        await member.remove_roles(muted_role, reason=f"إلغاء إسكات بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="🔊 تم إلغاء الإسكات بنجاح",
+            description=f"تم إلغاء إسكات {member.mention}",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_mute_list_command(message):
+    """Handle mute list command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    muted_role = discord.utils.get(message.guild.roles, name="Muted")
+    if not muted_role:
+        await message.channel.send("❌ لا توجد رتبة Muted")
+        return
+    
+    muted_members = [member for member in message.guild.members if muted_role in member.roles]
+    
+    if not muted_members:
+        await message.channel.send("✅ لا يوجد أعضاء مسكات حالياً")
+        return
+    
+    embed = discord.Embed(
+        title="🔇 قائمة الأعضاء المسكات",
+        color=discord.Color.orange()
+    )
+    
+    member_list = "\n".join([f"• {member.mention}" for member in muted_members])
+    embed.add_field(name="الأعضاء المسكات", value=member_list, inline=False)
+    
+    await message.channel.send(embed=embed)
+
+async def handle_ban_command(message):
+    """Handle ban command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `باند @عضو السبب`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        parts = message.content.split()
+        reason = " ".join(parts[2:]) if len(parts) > 2 else "لا يوجد سبب محدد"
+        
+        await member.ban(reason=f"حظر بواسطة {message.author} - السبب: {reason}")
+        
+        embed = discord.Embed(
+            title="🔨 تم الحظر بنجاح",
+            description=f"تم حظر {member.mention}",
+            color=discord.Color.dark_red()
+        )
+        embed.add_field(name="السبب", value=reason, inline=True)
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_kick_command(message):
+    """Handle kick command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `كيك @عضو السبب`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        parts = message.content.split()
+        reason = " ".join(parts[2:]) if len(parts) > 2 else "لا يوجد سبب محدد"
+        
+        await member.kick(reason=f"طرد بواسطة {message.author} - السبب: {reason}")
+        
+        embed = discord.Embed(
+            title="👢 تم الطرد بنجاح",
+            description=f"تم طرد {member.mention}",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="السبب", value=reason, inline=True)
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_clear_command(message):
+    """Handle clear command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    parts = message.content.split()
+    
+    # Check if it's "مسح الكل" command
+    if len(parts) > 1 and parts[1] == "الكل":
+        try:
+            # Delete all messages in the channel
+            deleted = await message.channel.purge(limit=None)
+            
+            embed = discord.Embed(
+                title="🧹 تم حذف جميع الرسائل بنجاح",
+                description=f"تم حذف {len(deleted)} رسالة",
+                color=discord.Color.green()
+            )
+            
+            await message.channel.send(embed=embed, delete_after=5)
+            return
+            
+        except Exception as e:
+            await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+            return
+    
+    # Regular clear command
+    amount = 5  # default
+    
+    if len(parts) > 1:
+        try:
+            amount = int(parts[1])
+            if amount > 100:
+                amount = 100
+        except ValueError:
+            amount = 5
+    
+    try:
+        deleted = await message.channel.purge(limit=amount + 1)  # +1 to include command message
+        
+        embed = discord.Embed(
+            title="🧹 تم الحذف بنجاح",
+            description=f"تم حذف {len(deleted) - 1} رسالة",
+            color=discord.Color.green()
+        )
+        
+        await message.channel.send(embed=embed, delete_after=5)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_add_role_command(message):
+    """Handle add role command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `اضافة @عضو`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        owner_role = discord.utils.get(message.guild.roles, name="owner")
+        
+        if not owner_role:
+            owner_role = await message.guild.create_role(name="owner", color=discord.Color.gold())
+        
+        if owner_role in member.roles:
+            await message.channel.send("❌ هذا العضو يملك رتبة الأونر بالفعل")
+            return
+        
+        await member.add_roles(owner_role, reason=f"إضافة رتبة الأونر بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إضافة الرتبة بنجاح",
+            description=f"تم إضافة رتبة الأونر لـ {member.mention}",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_remove_role_command(message):
+    """Handle remove role command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `حذف @عضو`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        owner_role = discord.utils.get(message.guild.roles, name="owner")
+        
+        if not owner_role or owner_role not in member.roles:
+            await message.channel.send("❌ هذا العضو لا يملك رتبة الأونر")
+            return
+        
+        await member.remove_roles(owner_role, reason=f"إزالة رتبة الأونر بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إزالة الرتبة بنجاح",
+            description=f"تم إزالة رتبة الأونر من {member.mention}",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_add_custom_role_command(message):
+    """Handle add custom role command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `اضافة رتبة @عضو @الرتبة`\nمثال: `اضافة رتبة @أحمد @VIP`")
+        return
+    
+    # Check if there are role mentions
+    if not message.role_mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `اضافة رتبة @عضو @الرتبة`\nمثال: `اضافة رتبة @أحمد @VIP`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        role = message.role_mentions[0]
+        
+        # Check if bot has permissions to manage roles
+        if not message.guild.me.guild_permissions.manage_roles:
+            await message.channel.send("❌ البوت لا يملك صلاحيات إدارة الرتب")
+            return
+        
+        # Check if the role is manageable by the bot
+        if role.position >= message.guild.me.top_role.position:
+            await message.channel.send("❌ لا يمكن إضافة رتبة أعلى من رتبة البوت")
+            return
+        
+        if role in member.roles:
+            await message.channel.send("❌ هذا العضو يملك الرتبة بالفعل")
+            return
+        
+        await member.add_roles(role, reason=f"إضافة رتبة بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إضافة الرتبة بنجاح",
+            description=f"تم إضافة رتبة {role.mention} لـ {member.mention}",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=role.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except discord.Forbidden:
+        await message.channel.send("❌ البوت لا يملك صلاحيات كافية لإضافة هذه الرتبة")
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_remove_custom_role_command(message):
+    """Handle remove custom role command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Check if there are mentions
+    if not message.mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `حذف رتبة @عضو @الرتبة`")
+        return
+    
+    # Check if there are role mentions
+    if not message.role_mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `حذف رتبة @عضو @الرتبة`")
+        return
+    
+    try:
+        member = message.mentions[0]
+        role = message.role_mentions[0]
+        
+        # Check if bot has permissions to manage roles
+        if not message.guild.me.guild_permissions.manage_roles:
+            await message.channel.send("❌ البوت لا يملك صلاحيات إدارة الرتب")
+            return
+        
+        # Check if the role is manageable by the bot
+        if role.position >= message.guild.me.top_role.position:
+            await message.channel.send("❌ لا يمكن إزالة رتبة أعلى من رتبة البوت")
+            return
+        
+        if role not in member.roles:
+            await message.channel.send("❌ هذا العضو لا يملك هذه الرتبة")
+            return
+        
+        await member.remove_roles(role, reason=f"إزالة رتبة بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إزالة الرتبة بنجاح",
+            description=f"تم إزالة رتبة {role.mention} من {member.mention}",
+            color=discord.Color.orange()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=role.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except discord.Forbidden:
+        await message.channel.send("❌ البوت لا يملك صلاحيات كافية لإزالة هذه الرتبة")
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_add_role_to_self_command(message):
+    """Handle add role to self command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Check if there are role mentions
+    if not message.role_mentions:
+        await message.channel.send("❌ الاستخدام الصحيح: `اضافة لي @الرتبة`\nمثال: `اضافة لي @VIP`")
+        return
+    
+    try:
+        member = message.author
+        role = message.role_mentions[0]
+        
+        # Check if bot has permissions to manage roles
+        if not message.guild.me.guild_permissions.manage_roles:
+            await message.channel.send("❌ البوت لا يملك صلاحيات إدارة الرتب")
+            return
+        
+        # Check if the role is manageable by the bot
+        if role.position >= message.guild.me.top_role.position:
+            await message.channel.send("❌ لا يمكن إضافة رتبة أعلى من رتبة البوت")
+            return
+        
+        if role in member.roles:
+            await message.channel.send("❌ تملك هذه الرتبة بالفعل")
+            return
+        
+        await member.add_roles(role, reason=f"إضافة رتبة لنفسه بواسطة {message.author}")
+        
+        embed = discord.Embed(
+            title="✅ تم إضافة الرتبة بنجاح",
+            description=f"تم إضافة رتبة {role.mention} لـ {member.mention}",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="الرتبة", value=role.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except discord.Forbidden:
+        await message.channel.send("❌ البوت لا يملك صلاحيات كافية لإضافة هذه الرتبة")
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def handle_create_admin_role_command(message):
+    """Handle create admin role command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
+        return
+    
+    # Parse command: إنشاء رتبة اسم_الرتبة
+    parts = message.content.split()
+    if len(parts) < 3:
+        await message.channel.send("❌ الاستخدام الصحيح: `إنشاء رتبة اسم_الرتبة`\nمثال: `إنشاء رتبة مشرف`")
+        return
+    
+    try:
+        role_name = " ".join(parts[2:])  # Get the role name
+        existing_role = discord.utils.get(message.guild.roles, name=role_name)
+        
+        if existing_role:
+            await message.channel.send(f"❌ الرتبة '{role_name}' موجودة بالفعل")
+            return
+        
+        # Create admin role with permissions
+        admin_role = await message.guild.create_role(
+            name=role_name,
+            color=discord.Color.blue(),
+            permissions=discord.Permissions(
+                manage_messages=True,
+                kick_members=True,
+                ban_members=True,
+                manage_roles=True,
+                manage_channels=True,
+                view_audit_log=True,
+                send_messages=True,
+                read_messages=True
+            )
+        )
+        
+        embed = discord.Embed(
+            title="✅ تم إنشاء الرتبة الإدارية بنجاح",
+            description=f"تم إنشاء رتبة {admin_role.mention}",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="اسم الرتبة", value=role_name, inline=True)
+        embed.add_field(name="الصلاحيات", value="إدارية كاملة", inline=True)
+        embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        
+        await message.channel.send(embed=embed)
+        
+    except Exception as e:
+        await message.channel.send(f"❌ حدث خطأ: {str(e)}")
 
 # Note: bot.run() is handled in app.py to avoid conflicts 
