@@ -640,14 +640,14 @@ async def on_message(message):
         await handle_remove_role_command(message)
     
     # Process commands normally as fallback
-            await bot.process_commands(message)
+    await bot.process_commands(message)
 
 # Direct command handlers
 async def help_command_direct(message):
     """Show help information directly"""
     if not is_owner_direct(message):
         await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
-            return
+        return
     
     embed = discord.Embed(
         title="🤖 أوامر بوت FSociety",
