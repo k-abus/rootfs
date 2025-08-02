@@ -285,7 +285,7 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.set_footer(text=f"سيتم إلغاء الإسكات تلقائياً بعد {duration} دقيقة")
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
         # Schedule unmute
         async def unmute_after_duration():
@@ -347,7 +347,7 @@ async def unmute_member(ctx, member: discord.Member):
         )
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -371,7 +371,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
             description=f"{member.mention} غير مكتوم",
             color=discord.Color.green()
         )
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         return
     
     # Get mute info
@@ -386,7 +386,7 @@ async def check_mute_status(ctx, member: discord.Member = None):
     embed.add_field(name="بواسطة", value=muter.mention if muter else "غير معروف", inline=True)
     embed.add_field(name="الوقت المتبقي", value=format_time_remaining(remaining_time), inline=True)
     
-    await ctx.respond(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
 
 @bot.command(name='مساعدة')
 async def help_command(ctx):
@@ -464,7 +464,7 @@ async def help_command(ctx):
     embed.set_footer(text="FSociety Bot v1.0")
     
     # إرسال الرسالة كخاصة للأونر فقط
-    await ctx.respond(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
 
 @bot.command(name='حالة')
 async def bot_status(ctx):
@@ -481,7 +481,7 @@ async def bot_status(ctx):
     embed.add_field(name="عدد السيرفرات", value=len(bot.guilds), inline=True)
     embed.add_field(name="وقت التشغيل", value="متصل", inline=True)
     
-    await ctx.respond(embed=embed, ephemeral=True)
+    await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
 
 @bot.command(name='باند')
 async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوجد سبب محدد"):
@@ -509,7 +509,7 @@ async def ban_member(ctx, member: discord.Member, *, reason: str = "لا يوج�
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -540,7 +540,7 @@ async def kick_member(ctx, member: discord.Member, *, reason: str = "لا يوج
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -569,7 +569,7 @@ async def clear_messages(ctx, amount: int = 5):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.add_field(name="العدد المطلوب", value=amount, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -600,7 +600,7 @@ async def clear_all_messages(ctx):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.add_field(name="الرسائل المثبتة", value="لم يتم حذفها", inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -635,7 +635,7 @@ async def add_role(ctx, member: discord.Member):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -672,7 +672,7 @@ async def remove_role(ctx, member: discord.Member):
         embed.add_field(name="بواسطة", value=ctx.author.mention, inline=True)
         embed.add_field(name="الرتبة", value=owner_role.mention, inline=True)
         
-        await ctx.respond(embed=embed, ephemeral=True)
+        await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -796,7 +796,7 @@ async def help_command_direct(message):
     )
     
     embed.set_footer(text="FSociety Bot v1.0")
-    await message.channel.send(embed=embed)
+    await message.channel.send(embed=embed, delete_after=7)
 
 async def status_command_direct(message):
     """Check bot status directly"""
@@ -809,7 +809,7 @@ async def status_command_direct(message):
     embed.add_field(name="الاستجابة", value=f"{round(bot.latency * 1000)}ms", inline=True)
     embed.add_field(name="عدد السيرفرات", value=len(bot.guilds), inline=True)
     
-    await message.channel.send(embed=embed)
+    await message.channel.send(embed=embed, delete_after=7)
 
 def is_owner_direct(message):
     """Check if user is server owner or has admin role"""
@@ -936,7 +936,7 @@ async def handle_mute_command(message):
         embed.add_field(name="المدة", value=f"{mute_duration} دقيقة", inline=True)
         embed.add_field(name="التفاصيل", value=mute_description, inline=False)
         
-        await message.channel.send(embed=embed)
+        await message.channel.send(embed=embed, delete_after=7)
         
         # Send report to mute-log channel
         await send_mute_report(message.guild, member, reason, message.author, mute_duration, mute_description)
@@ -997,7 +997,7 @@ async def handle_unmute_command(message):
         )
         embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
         
-        await message.channel.send(embed=embed)
+        await message.channel.send(embed=embed, delete_after=7)
         
         # Send manual unmute report to mute-log
         await send_manual_unmute_report(message.guild, member, message.author)
@@ -1030,7 +1030,7 @@ async def handle_mute_list_command(message):
     member_list = "\n".join([f"• {member.mention}" for member in muted_members])
     embed.add_field(name="الأعضاء المسكات", value=member_list, inline=False)
     
-    await message.channel.send(embed=embed)
+    await message.channel.send(embed=embed, delete_after=7)
 
 async def handle_ban_command(message):
     """Handle ban command directly"""
@@ -1058,7 +1058,7 @@ async def handle_ban_command(message):
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
         
-        await message.channel.send(embed=embed)
+        await message.channel.send(embed=embed, delete_after=7)
         
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
@@ -1089,7 +1089,7 @@ async def handle_kick_command(message):
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
         
-        await message.channel.send(embed=embed)
+        await message.channel.send(embed=embed, delete_after=7)
         
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
