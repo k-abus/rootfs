@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import os
 from dotenv import load_dotenv
+import weakref
 
 # Load environment variables
 load_dotenv()
@@ -12,6 +13,9 @@ load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='', intents=intents)
+
+# Global task tracking
+active_unmute_tasks = {}
 
 def log_command_usage(ctx, command_name):
     """Log command usage for debugging"""
@@ -310,16 +314,39 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
         await ctx.respond(embed=embed, ephemeral=True, delete_after=7)
         
         # Schedule unmute
+        task_key = f"{member.id}_{ctx.guild.id}"
+        
         async def unmute_after_duration():
             await asyncio.sleep(duration * 60)
             try:
+                # Check if member still has muted role
                 if muted_role in member.roles:
                     await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
-                    await ctx.send(f"✅ تم إلغاء ميوت {member.mention} بعد انتهاء المدة")
+                    
+                    # Try to send notification to the channel
+                    try:
+                        channel = ctx.channel
+                        embed = discord.Embed(
+                            title="✅ تم إلغاء الإسكات تلقائياً",
+                            description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
+                            color=discord.Color.green()
+                        )
+                        embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
+                        embed.add_field(name="السبب", value=f"{matched_reason} ({reason})", inline=True)
+                        await channel.send(embed=embed, delete_after=10)
+                    except Exception as e:
+                        print(f"Error sending unmute notification: {e}")
+                        
             except Exception as e:
                 print(f"Error in unmute task: {e}")
+            finally:
+                # Remove task from tracking
+                if task_key in active_unmute_tasks:
+                    del active_unmute_tasks[task_key]
         
-        asyncio.create_task(unmute_after_duration())
+        # Create and track the task
+        task = asyncio.create_task(unmute_after_duration())
+        active_unmute_tasks[task_key] = task
         
     except Exception as e:
         await ctx.respond(f"❌ حدث خطأ: {str(e)}", ephemeral=True)
@@ -352,6 +379,15 @@ async def unmute_member(ctx, member: discord.Member):
         if member.top_role >= ctx.guild.me.top_role:
             await ctx.respond("❌ لا يمكن إلغاء إسكات عضو برتبة أعلى من رتبة البوت", ephemeral=True)
             return
+        
+        # Cancel any pending unmute task
+        task_key = f"{member.id}_{ctx.guild.id}"
+        if task_key in active_unmute_tasks:
+            try:
+                active_unmute_tasks[task_key].cancel()
+                del active_unmute_tasks[task_key]
+            except Exception as e:
+                print(f"Error canceling unmute task: {e}")
         
         try:
             await member.remove_roles(muted_role, reason=f"إلغاء ميوت بواسطة {ctx.author}")
@@ -727,6 +763,7 @@ async def on_ready():
     print(f'✅ {bot.user} تم تسجيل الدخول بنجاح!')
     print(f'🆔 Bot ID: {bot.user.id}')
     print(f'📊 عدد السيرفرات: {len(bot.guilds)}')
+    print(f'🔄 المهام النشطة: {len(active_unmute_tasks)}')
 
 @bot.event
 async def on_message(message):
@@ -1011,6 +1048,15 @@ async def handle_unmute_command(message):
         if not muted_role or muted_role not in member.roles:
             await message.channel.send("❌ هذا العضو غير مسكات")
             return
+        
+        # Cancel any pending unmute task
+        task_key = f"{member.id}_{message.guild.id}"
+        if task_key in active_unmute_tasks:
+            try:
+                active_unmute_tasks[task_key].cancel()
+                del active_unmute_tasks[task_key]
+            except Exception as e:
+                print(f"Error canceling unmute task: {e}")
         
         await member.remove_roles(muted_role, reason=f"إلغاء إسكات بواسطة {message.author}")
         
