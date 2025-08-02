@@ -618,6 +618,8 @@ async def on_message(message):
         await handle_unmute_command(message)
     elif content == 'اسكات':
         await handle_mute_list_command(message)
+    elif content == 'اسباب':
+        await handle_mute_reasons_command(message)
     elif content.startswith('باند'):
         await handle_ban_command(message)
     elif content.startswith('كيك'):
@@ -638,14 +640,14 @@ async def on_message(message):
         await handle_remove_role_command(message)
     
     # Process commands normally as fallback
-    await bot.process_commands(message)
+            await bot.process_commands(message)
 
 # Direct command handlers
 async def help_command_direct(message):
     """Show help information directly"""
     if not is_owner_direct(message):
         await message.channel.send("❌ هذا الأمر متاح لأونر السيرفر فقط")
-        return
+            return
     
     embed = discord.Embed(
         title="🤖 أوامر بوت FSociety",
@@ -656,9 +658,10 @@ async def help_command_direct(message):
     embed.add_field(
         name="🎭 أوامر الإدارة",
         value="""
-`اسكت @عضو السبب` - إسكات العضو
+`اسكت @عضو السبب` - إسكات العضو (مع مدة تلقائية)
 `تكلم @عضو` - إلغاء إسكات العضو
 `اسكات` - عرض قائمة الأعضاء المسكات
+`اسباب` - عرض قائمة الأسباب والمدة
 `باند @عضو السبب` - حظر العضو
 `كيك @عضو السبب` - طرد العضو
 `مسح عدد` - حذف رسائل محددة
@@ -738,6 +741,42 @@ async def handle_mute_command(message):
         parts = message.content.split()
         reason = " ".join(parts[2:]) if len(parts) > 2 else "لا يوجد سبب محدد"
         
+        # Define mute reasons with durations
+        mute_reasons = {
+            "التحدث في روم غير مخصص": {"duration": 10, "description": "⏱️ مدة الإسكات: 10 دقائق\n🔹 للتنبيه والتهذيب فقط."},
+            "السبام أو التكرار المزعج": {"duration": 30, "description": "⏱️ مدة الإسكات: 30 دقيقة\n🔹 كنوع من التحذير الجاد دون الطرد."},
+            "استخدام ألفاظ غير لائقة": {"duration": 60, "description": "⏱️ مدة الإسكات: 1 ساعة\n🔹 إذا تم التنبيه ولم يستجب."},
+            "مزاح ثقيل": {"duration": 60, "description": "⏱️ مدة الإسكات: 1 ساعة\n🔹 إذا تم التنبيه ولم يستجب."},
+            "إثارة الفتن": {"duration": 120, "description": "⏱️ مدة الإسكات: 2 ساعة\n🔹 إذا تسبب بفوضى أو استفزاز عام."},
+            "الجدال المفرط": {"duration": 120, "description": "⏱️ مدة الإسكات: 2 ساعة\n🔹 إذا تسبب بفوضى أو استفزاز عام."},
+            "نشر روابط ممنوعة": {"duration": 240, "description": "⏱️ مدة الإسكات: 4 ساعات\n🔹 إذا كانت الروابط غير آمنة أو دعائية."},
+            "محتوى مخالف": {"duration": 240, "description": "⏱️ مدة الإسكات: 4 ساعات\n🔹 إذا كانت الروابط غير آمنة أو دعائية."},
+            "الاستهزاء": {"duration": 360, "description": "⏱️ مدة الإسكات: 6 ساعات\n🔹 خصوصًا إذا كان متكرر أو مؤثر على العضو المتضرر."},
+            "التنمر": {"duration": 360, "description": "⏱️ مدة الإسكات: 6 ساعات\n🔹 خصوصًا إذا كان متكرر أو مؤثر على العضو المتضرر."},
+            "مخالفة قرارات الإدارة": {"duration": 720, "description": "⏱️ مدة الإسكات: 12 ساعة\n🔹 تعكس عدم احترام الطاقم الإداري."},
+            "التحدي المتعمد": {"duration": 720, "description": "⏱️ مدة الإسكات: 12 ساعة\n🔹 تعكس عدم احترام الطاقم الإداري."},
+            "الاسم غير اللائق": {"duration": 60, "description": "⏱️ مدة الإسكات: 1 ساعة\n🔹 يُطلب منه التعديل، ثم يُفك الإسكات."},
+            "الصورة غير اللائقة": {"duration": 60, "description": "⏱️ مدة الإسكات: 1 ساعة\n🔹 يُطلب منه التعديل، ثم يُفك الإسكات."},
+            "نقاشات دينية": {"duration": 1440, "description": "⏱️ مدة الإسكات: 24 ساعة\n🔹 إذا كانت مثيرة للفتن أو تخالف قوانين السيرفر."},
+            "نقاشات سياسية": {"duration": 1440, "description": "⏱️ مدة الإسكات: 24 ساعة\n🔹 إذا كانت مثيرة للفتن أو تخالف قوانين السيرفر."},
+            "تكرار المخالفة": {"duration": 4320, "description": "⏱️ مدة الإسكات: 3 أيام\n🔹 بحسب نوع المخالفة وتكرارها."}
+        }
+        
+        # Find matching reason and get duration
+        mute_duration = None
+        mute_description = ""
+        
+        for reason_key, reason_info in mute_reasons.items():
+            if reason_key in reason:
+                mute_duration = reason_info["duration"]
+                mute_description = reason_info["description"]
+                break
+        
+        # If no specific reason found, use default
+        if mute_duration is None:
+            mute_duration = 30  # Default 30 minutes
+            mute_description = "⏱️ مدة الإسكات: 30 دقيقة\n🔹 سبب غير محدد."
+        
         # Create muted role if it doesn't exist
         muted_role = discord.utils.get(message.guild.roles, name="Muted")
         if not muted_role:
@@ -748,6 +787,7 @@ async def handle_mute_command(message):
         
         await member.add_roles(muted_role, reason=f"ميوت بواسطة {message.author} - السبب: {reason}")
         
+        # Create embed with duration information
         embed = discord.Embed(
             title="🔇 تم الإسكات بنجاح",
             description=f"تم إسكات {member.mention}",
@@ -755,8 +795,38 @@ async def handle_mute_command(message):
         )
         embed.add_field(name="السبب", value=reason, inline=True)
         embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
+        embed.add_field(name="المدة", value=f"{mute_duration} دقيقة", inline=True)
+        embed.add_field(name="التفاصيل", value=mute_description, inline=False)
         
         await message.channel.send(embed=embed)
+        
+        # Send report to mute-log channel
+        await send_mute_report(message.guild, member, reason, message.author, mute_duration, mute_description)
+        
+        # Schedule unmute after duration
+        if mute_duration > 0:
+            async def unmute_after_duration():
+                await asyncio.sleep(mute_duration * 60)  # Convert minutes to seconds
+                try:
+                    if muted_role in member.roles:
+                        await member.remove_roles(muted_role, reason="انتهت مدة الإسكات تلقائياً")
+                        
+                        unmute_embed = discord.Embed(
+                            title="🔊 تم إلغاء الإسكات تلقائياً",
+                            description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
+                            color=discord.Color.green()
+                        )
+                        unmute_embed.add_field(name="المدة", value=f"{mute_duration} دقيقة", inline=True)
+                        
+                        await message.channel.send(embed=unmute_embed)
+                        
+                        # Send unmute report to mute-log
+                        await send_unmute_report(message.guild, member, mute_duration)
+                except Exception as e:
+                    print(f"Error in auto-unmute: {e}")
+            
+            # Start the unmute task
+            asyncio.create_task(unmute_after_duration())
         
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
@@ -790,6 +860,9 @@ async def handle_unmute_command(message):
         embed.add_field(name="بواسطة", value=message.author.mention, inline=True)
         
         await message.channel.send(embed=embed)
+        
+        # Send manual unmute report to mute-log
+        await send_manual_unmute_report(message.guild, member, message.author)
         
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
@@ -1108,6 +1181,38 @@ async def handle_remove_custom_role_command(message):
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
 
+async def handle_mute_reasons_command(message):
+    """Handle mute reasons command directly"""
+    if not is_owner_direct(message):
+        await message.channel.send("❌ ليس لديك صلاحيات كافية")
+        return
+    
+    embed = discord.Embed(
+        title="📌 قائمة الأسباب مع المدة المقترحة",
+        description="استخدم هذه الأسباب مع أمر `اسكت @عضو السبب`",
+        color=discord.Color.blue()
+    )
+    
+    reasons_list = [
+        "**التحدث في روم غير مخصص**\n⏱️ مدة الإسكات: 10 دقائق\n🔹 للتنبيه والتهذيب فقط.",
+        "**السبام أو التكرار المزعج**\n⏱️ مدة الإسكات: 30 دقيقة\n🔹 كنوع من التحذير الجاد دون الطرد.",
+        "**استخدام ألفاظ غير لائقة / مزاح ثقيل**\n⏱️ مدة الإسكات: 1 ساعة\n🔹 إذا تم التنبيه ولم يستجب.",
+        "**إثارة الفتن أو الجدال المفرط**\n⏱️ مدة الإسكات: 2 ساعة\n🔹 إذا تسبب بفوضى أو استفزاز عام.",
+        "**نشر روابط ممنوعة / محتوى مخالف**\n⏱️ مدة الإسكات: 4 ساعات\n🔹 إذا كانت الروابط غير آمنة أو دعائية.",
+        "**الاستهزاء أو التنمر على الأعضاء**\n⏱️ مدة الإسكات: 6 ساعات\n🔹 خصوصًا إذا كان متكرر أو مؤثر على العضو المتضرر.",
+        "**مخالفة قرارات الإدارة أو التحدي المتعمد**\n⏱️ مدة الإسكات: 12 ساعة\n🔹 تعكس عدم احترام الطاقم الإداري.",
+        "**الاسم أو الصورة غير اللائقة**\n⏱️ مدة الإسكات: 1 ساعة\n🔹 يُطلب منه التعديل، ثم يُفك الإسكات.",
+        "**نقاشات دينية أو سياسية محظورة**\n⏱️ مدة الإسكات: 24 ساعة\n🔹 إذا كانت مثيرة للفتن أو تخالف قوانين السيرفر.",
+        "**تكرار المخالفة بعد الإسكات الأول**\n⏱️ مدة الإسكات: 3 أيام\n🔹 بحسب نوع المخالفة وتكرارها."
+    ]
+    
+    for i, reason in enumerate(reasons_list, 1):
+        embed.add_field(name=f"سبب {i}", value=reason, inline=False)
+    
+    embed.set_footer(text="💡 مثال: اسكت @عضو السبام أو التكرار المزعج")
+    
+    await message.channel.send(embed=embed)
+
 async def handle_add_role_to_self_command(message):
     """Handle add role to self command directly"""
     if not is_owner_direct(message):
@@ -1203,5 +1308,115 @@ async def handle_create_admin_role_command(message):
         
     except Exception as e:
         await message.channel.send(f"❌ حدث خطأ: {str(e)}")
+
+async def send_mute_report(guild, member, reason, admin, duration, description):
+    """Send mute report to mute-log channel"""
+    try:
+        # Find mute-log channel
+        mute_log_channel = discord.utils.get(guild.channels, name="mute-log")
+        
+        if not mute_log_channel:
+            print("❌ روم mute-log غير موجود")
+            return
+        
+        # Get current date in Arabic
+        current_date = datetime.datetime.now().strftime("%d-%B-%Y")
+        
+        # Convert duration to readable format
+        if duration >= 1440:  # 24 hours or more
+            duration_text = f"{duration // 1440} يوم"
+        elif duration >= 60:  # 1 hour or more
+            duration_text = f"{duration // 60} ساعة"
+        else:
+            duration_text = f"{duration} دقيقة"
+        
+        # Create report embed
+        report_embed = discord.Embed(
+            title="🛑 تقرير إسكات جديد",
+            color=discord.Color.red()
+        )
+        
+        report_embed.add_field(name="👤 المستخدم", value=member.mention, inline=True)
+        report_embed.add_field(name="⏱️ المدة", value=duration_text, inline=True)
+        report_embed.add_field(name="📄 السبب", value=reason, inline=True)
+        report_embed.add_field(name="📝 بواسطة", value=admin.mention, inline=True)
+        report_embed.add_field(name="📅 التاريخ", value=current_date, inline=True)
+        report_embed.add_field(name="📍 الروم", value=admin.voice.channel.name if admin.voice and admin.voice.channel else "غير محدد", inline=True)
+        
+        if description:
+            report_embed.add_field(name="📋 التفاصيل", value=description, inline=False)
+        
+        await mute_log_channel.send(embed=report_embed)
+        
+    except Exception as e:
+        print(f"Error sending mute report: {e}")
+
+async def send_unmute_report(guild, member, duration):
+    """Send unmute report to mute-log channel"""
+    try:
+        # Find mute-log channel
+        mute_log_channel = discord.utils.get(guild.channels, name="mute-log")
+        
+        if not mute_log_channel:
+            print("❌ روم mute-log غير موجود")
+            return
+        
+        # Get current date in Arabic
+        current_date = datetime.datetime.now().strftime("%d-%B-%Y")
+        
+        # Convert duration to readable format
+        if duration >= 1440:  # 24 hours or more
+            duration_text = f"{duration // 1440} يوم"
+        elif duration >= 60:  # 1 hour or more
+            duration_text = f"{duration // 60} ساعة"
+        else:
+            duration_text = f"{duration} دقيقة"
+        
+        # Create unmute report embed
+        unmute_embed = discord.Embed(
+            title="🔊 تقرير رفع الإسكات",
+            description=f"تم رفع الإسكات تلقائياً بعد انتهاء المدة",
+            color=discord.Color.green()
+        )
+        
+        unmute_embed.add_field(name="👤 المستخدم", value=member.mention, inline=True)
+        unmute_embed.add_field(name="⏱️ المدة المكتملة", value=duration_text, inline=True)
+        unmute_embed.add_field(name="📅 التاريخ", value=current_date, inline=True)
+        unmute_embed.add_field(name="🔄 الحالة", value="تم الرفع تلقائياً", inline=True)
+        
+        await mute_log_channel.send(embed=unmute_embed)
+        
+    except Exception as e:
+        print(f"Error sending unmute report: {e}")
+
+async def send_manual_unmute_report(guild, member, admin):
+    """Send manual unmute report to mute-log channel"""
+    try:
+        # Find mute-log channel
+        mute_log_channel = discord.utils.get(guild.channels, name="mute-log")
+        
+        if not mute_log_channel:
+            print("❌ روم mute-log غير موجود")
+            return
+        
+        # Get current date in Arabic
+        current_date = datetime.datetime.now().strftime("%d-%B-%Y")
+        
+        # Create manual unmute report embed
+        manual_unmute_embed = discord.Embed(
+            title="🔊 تقرير رفع الإسكات اليدوي",
+            description=f"تم رفع الإسكات يدوياً بواسطة الإدارة",
+            color=discord.Color.blue()
+        )
+        
+        manual_unmute_embed.add_field(name="👤 المستخدم", value=member.mention, inline=True)
+        manual_unmute_embed.add_field(name="📝 بواسطة", value=admin.mention, inline=True)
+        manual_unmute_embed.add_field(name="📅 التاريخ", value=current_date, inline=True)
+        manual_unmute_embed.add_field(name="🔄 الحالة", value="تم الرفع يدوياً", inline=True)
+        
+        await mute_log_channel.send(embed=manual_unmute_embed)
+        
+    except Exception as e:
+        print(f"Error sending manual unmute report: {e}")
 
 # Note: bot.run() is handled in app.py to avoid conflicts 
