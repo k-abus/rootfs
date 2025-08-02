@@ -323,17 +323,21 @@ async def mute_member_direct(ctx, member: discord.Member, *, reason: str = "لا
                 if muted_role in member.roles:
                     await member.remove_roles(muted_role, reason="انتهاء مدة الميوت")
                     
-                    # Try to send notification to the channel
+                    # Send notification to mute-log channel
                     try:
-                        channel = ctx.channel
-                        embed = discord.Embed(
-                            title="✅ تم إلغاء الإسكات تلقائياً",
-                            description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
-                            color=discord.Color.green()
-                        )
-                        embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
-                        embed.add_field(name="السبب", value=f"{matched_reason} ({reason})", inline=True)
-                        await channel.send(embed=embed, delete_after=10)
+                        mute_log_channel = discord.utils.get(ctx.guild.channels, name="mute-log")
+                        if mute_log_channel:
+                            embed = discord.Embed(
+                                title="✅ تم إلغاء الإسكات تلقائياً",
+                                description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
+                                color=discord.Color.green()
+                            )
+                            embed.add_field(name="المدة", value=f"{duration} دقيقة", inline=True)
+                            embed.add_field(name="السبب", value=f"{matched_reason} ({reason})", inline=True)
+                            embed.add_field(name="التاريخ", value=datetime.datetime.now().strftime("%d-%B-%Y"), inline=True)
+                            await mute_log_channel.send(embed=embed)
+                        else:
+                            print("❌ روم mute-log غير موجود")
                     except Exception as e:
                         print(f"Error sending unmute notification: {e}")
                         
@@ -1010,14 +1014,23 @@ async def handle_mute_command(message):
                     if muted_role in member.roles:
                         await member.remove_roles(muted_role, reason="انتهت مدة الإسكات تلقائياً")
                         
-                        unmute_embed = discord.Embed(
-                            title="🔊 تم إلغاء الإسكات تلقائياً",
-                            description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
-                            color=discord.Color.green()
-                        )
-                        unmute_embed.add_field(name="المدة", value=f"{mute_duration} دقيقة", inline=True)
-                        
-                        await message.channel.send(embed=unmute_embed)
+                        # Send notification to mute-log channel
+                        try:
+                            mute_log_channel = discord.utils.get(message.guild.channels, name="mute-log")
+                            if mute_log_channel:
+                                unmute_embed = discord.Embed(
+                                    title="✅ تم إلغاء الإسكات تلقائياً",
+                                    description=f"تم إلغاء إسكات {member.mention} بعد انتهاء المدة",
+                                    color=discord.Color.green()
+                                )
+                                unmute_embed.add_field(name="المدة", value=f"{mute_duration} دقيقة", inline=True)
+                                unmute_embed.add_field(name="السبب", value=f"{matched_reason} ({reason})", inline=True)
+                                unmute_embed.add_field(name="التاريخ", value=datetime.datetime.now().strftime("%d-%B-%Y"), inline=True)
+                                await mute_log_channel.send(embed=unmute_embed)
+                            else:
+                                print("❌ روم mute-log غير موجود")
+                        except Exception as e:
+                            print(f"Error sending unmute notification: {e}")
                         
                         # Send unmute report to mute-log
                         await send_unmute_report(message.guild, member, mute_duration)
